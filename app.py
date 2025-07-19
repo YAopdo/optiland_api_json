@@ -67,10 +67,10 @@ def extract_optical_data(lens):
         })
 
     # === Surface Diameters ===
-    diameters = [
-        2 * s.semi_aperture for s in lens.surface_group.surfaces
-    ]
-
+    #diameters = [
+    #    2 * s.semi_aperture for s in lens.surface_group.surfaces
+    #]
+    diameters = [2]
     output = {}
 
     # === Spot Diagram ===
