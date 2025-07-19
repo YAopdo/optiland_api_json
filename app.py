@@ -66,6 +66,11 @@ def extract_optical_data(lens):
             "y": lens.surface_group.y.tolist(),
         })
 
+    # === Surface Diameters ===
+    diameters = [
+        2 * s.semi_aperture for s in lens.surface_group.surfaces
+    ]
+
     output = {}
 
     # === Spot Diagram ===
@@ -112,9 +117,12 @@ def extract_optical_data(lens):
         "data": [d.tolist() for d in distortion.data]
     }
 
-    # === Ray Paths ===
+    # === Final Outputs ===
     output["all_fields_rays"] = all_fields_data
+    output["surface_diameters"] = diameters  # ✅ NEW FIELD
+
     return output
+
 
 # -----------------------------------------
 # API Route
