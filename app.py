@@ -6,7 +6,6 @@ import numpy as np
 import traceback, os
 import json
 import matplotlib
-matplotlib.use("Agg")  # Use non-interactive backend
 
 from optiland import optic, analysis
 
@@ -136,7 +135,7 @@ def simulate():
         surfaces = payload["surfaces"]
 
         lens = build_lens(surfaces)
-        lens.draw()  # Will now NOT open any plot window
+        lens.info()  # Will now NOT open any plot window
 
         data = extract_optical_data(lens)
 
