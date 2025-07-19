@@ -5,6 +5,8 @@ from flask_cors import CORS
 import numpy as np
 import traceback, os
 import json
+import matplotlib
+matplotlib.use("Agg")  # Use non-interactive backend
 
 from optiland import optic, analysis
 
@@ -67,10 +69,9 @@ def extract_optical_data(lens):
         })
 
     # === Surface Diameters ===
-    #diameters = [
-    #    2 * s.semi_aperture for s in lens.surface_group.surfaces
-    #]
-    diameters = [2]
+    diameters = [
+        2 * s.semi_aperture for s in lens.surface_group.surfaces
+    ]
     output = {}
 
     # === Spot Diagram ===
@@ -135,6 +136,8 @@ def simulate():
         surfaces = payload["surfaces"]
 
         lens = build_lens(surfaces)
+        lens.draw()  # Will now NOT open any plot window
+
         data = extract_optical_data(lens)
 
         return jsonify(data)
