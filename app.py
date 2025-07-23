@@ -73,7 +73,7 @@ def extract_optical_data(lens):
     surfaces = [
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
-            "thickness": float(s.thickness),
+            "thickness": float(s.thickness) if np.isfinite(s.thickness) else 1e6,
             "diameter": float(2 * s.semi_aperture)
         }
         for s in lens.surface_group.surfaces
