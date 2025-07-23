@@ -46,7 +46,7 @@ def build_lens(surfaces_json):
 # -----------------------------------------
 
 def extract_optical_data(lens):
-    spot = analysis.SpotDiagram(lens)
+    spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
     distortion = analysis.Distortion(lens)
 
