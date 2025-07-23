@@ -67,10 +67,17 @@ def extract_optical_data(lens):
             "y": lens.surface_group.y.tolist(),
         })
 
-    # === Surface Diameters ===
-    diameters = [
-        2 * s.semi_aperture for s in lens.surface_group.surfaces
+    # === Surface Geometry ===
+    diameters = [2 * s.semi_aperture for s in lens.surface_group.surfaces]
+    surfaces = [
+        {
+            "radius": s.geometry.radius,
+            "thickness": s.thickness,
+            "diameter": 2 * s.semi_aperture
+        }
+        for s in lens.surface_group.surfaces
     ]
+
     output = {}
 
     # === Spot Diagram ===
@@ -119,9 +126,11 @@ def extract_optical_data(lens):
 
     # === Final Outputs ===
     output["all_fields_rays"] = all_fields_data
-    output["surface_diameters"] = diameters  # ✅ NEW FIELD
+    output["surface_diameters"] = diameters  # still optional for other parts
+    output["surfaces"] = surfaces            # ✅ New structured surface objects
 
     return output
+
 
 
 # -----------------------------------------
