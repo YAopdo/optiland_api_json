@@ -69,11 +69,12 @@ def extract_optical_data(lens):
 
     # === Surface Geometry ===
     diameters = [2 * s.semi_aperture for s in lens.surface_group.surfaces]
+
     surfaces = [
         {
-            "radius": s.geometry.radius,
-            "thickness": s.thickness,
-            "diameter": 2 * s.semi_aperture
+            "radius": float(s.geometry.radius),
+            "thickness": float(s.thickness),
+            "diameter": float(2 * s.semi_aperture)
         }
         for s in lens.surface_group.surfaces
     ]
