@@ -46,6 +46,7 @@ def build_lens(surfaces_json):
 # -----------------------------------------
 
 def extract_optical_data(lens):
+    lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
     distortion = analysis.Distortion(lens)
@@ -145,9 +146,30 @@ def simulate():
         surfaces = payload["surfaces"]
 
         lens = build_lens(surfaces)
-        lens.info()  # Will now NOT open any plot window
-
-        data = extract_optical_data(lens)
+        
+        # Try to assign is_stop to each valid surface until one works
+        valid_indices = list(range(1, len(lens.surface_group.surfaces)))
+        success = False
+        
+        for i in valid_indices:
+            # Reset all is_stop flags
+            for s in lens.surface_group.surfaces:
+                s.is_stop = False
+            # Set candidate
+            lens.surface_group.surfaces[i].is_stop = True
+        
+            try:
+                data = extract_optical_data(lens)
+                success = True
+                print(f"Successfully set stop surface at index {i}")
+                break
+            except Exception as e:
+                print(f"Surface {i} failed as stop surface: {e}")
+                continue
+        
+        if not success:
+            raise RuntimeError("No valid stop surface found.")
+        
 
         return jsonify(data)
 
