@@ -44,6 +44,28 @@ def build_lens(surfaces_json):
 # -----------------------------------------
 # Optical Data Extractor
 # -----------------------------------------
+def best_intersection_point(x0, y0, x1, y1):
+    # Direction vectors of the lines
+    dx = x1 - x0
+    dy = y1 - y0
+    
+    # Normalize direction vectors
+    lengths = np.sqrt(dx**2 + dy**2)
+    dx /= lengths
+    dy /= lengths
+
+    # Normal vector to each line (perpendicular)
+    nx = -dy
+    ny = dx
+
+    # Each line satisfies: nx*(x - x0) + ny*(y - y0) = 0
+    # Expand to: nx*x + ny*y = nx*x0 + ny*y0
+    A = np.stack([nx, ny], axis=1)
+    b = nx * x0 + ny * y0
+
+    # Least squares solution to A @ [x, y] = b
+    best_point, *_ = np.linalg.lstsq(A, b, rcond=None)
+    return best_point  # [x, y]
 
 def extract_optical_data(lens):
     lens.info()
@@ -159,8 +181,28 @@ def simulate():
             lens.surface_group.surfaces[i].is_stop = True
         
             try:
+                # === Trace rays and compute best image distance ===
+                lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
+                
+                # Use the last two surfaces to estimate best intersection
+                x_all = lens.surface_group.z
+                y_all = lens.surface_group.y
+                
+                x0 = x_all[-3]  # second to last surface (before image)
+                y0 = y_all[-3]
+                x1 = x_all[-2]  # last surface (image plane, initial guess)
+                y1 = y_all[-2]
+                
+                best_point = best_intersection_point(x0, y0, x1, y1)
+                image_distance = best_point[0] - x0[len(x0) // 2]
+                
+                # Set the new thickness for the second-to-last surface
+                lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)
+                
+                # Now extract data after adjusting image plane
                 data = extract_optical_data(lens)
                 success = True
+
                 print(f"Successfully set stop surface at index {i}")
                 break
             except Exception as e:
