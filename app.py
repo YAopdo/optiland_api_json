@@ -188,10 +188,10 @@ def simulate():
                 x_all = lens.surface_group.z
                 y_all = lens.surface_group.y
                 
-                x0 = x_all[-3]  # second to last surface (before image)
-                y0 = y_all[-3]
-                x1 = x_all[-2]  # last surface (image plane, initial guess)
-                y1 = y_all[-2]
+                x0 = x_all[-2]  # second to last surface (before image)
+                y0 = y_all[-2]
+                x1 = x_all[-1]  # last surface (image plane, initial guess)
+                y1 = y_all[-1]
                 
                 best_point = best_intersection_point(x0, y0, x1, y1)
                 image_distance = best_point[0] - x0[len(x0) // 2]
