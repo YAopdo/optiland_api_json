@@ -21,13 +21,19 @@ def build_lens(surfaces_json):
     lens.add_surface(index=0, thickness=np.inf)  # Object plane
 
     for i, s in enumerate(surfaces_json, start=1):
+        # Construct material using refractive index, fallback to air
+        if "index" in s:
+            material = AbbeMaterial(n=s["index"], abbe=60)
+        else:
+            material = "Air"
+
         kwargs = {
-            "index":       i,
-            "radius":      s["radius"],
-            "thickness":   s["thickness"],
-            "material":    s.get("material", "Air"),
+            "index":        i,
+            "radius":       s["radius"],
+            "thickness":    s["thickness"],
+            "material":     material,
             "surface_type": s.get("surface_type"),
-            "conic":       s.get("conic"),
+            "conic":        s.get("conic"),
             "coefficients": s.get("coefficients"),
         }
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
