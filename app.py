@@ -6,6 +6,7 @@ import numpy as np
 import traceback, os
 import json
 import matplotlib
+from optiland.materials import AbbeMaterial
 
 from optiland import optic, analysis
 
