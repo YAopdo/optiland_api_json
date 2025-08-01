@@ -200,9 +200,11 @@ def simulate():
     try:
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
-
-        lens = build_lens(surfaces)
+        light_sources = payload.get("lightSources", [])
+        wavelengths = payload.get("wavelengths", [])
         
+        lens = build_lens(surfaces, light_sources, wavelengths)
+
         # Try to assign is_stop to each valid surface until one works
         valid_indices = list(range(1, len(lens.surface_group.surfaces)))
         success = False
