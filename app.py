@@ -17,10 +17,15 @@ CORS(app)
 # Lens Builder
 # -----------------------------------------
 
-def build_lens(surfaces_json):
+def build_lens(surfaces_json, light_sources=None, wavelengths=None):
     lens = optic.Optic()
-    lens.add_surface(index=0, thickness=np.inf)  # Object plane
 
+    # --- Determine object plane thickness ---
+    if light_sources and light_sources[0].get("type") == "point":
+        x_object = light_sources[0].get("x", 0)
+        lens.add_surface(index=0, thickness=float(x_object))
+    else:
+        lens.add_surface(index=0, thickness=np.inf)
     for i, s in enumerate(surfaces_json, start=1):
         # Construct material using refractive index, fallback to air
         if "index" in s:
@@ -42,10 +47,32 @@ def build_lens(surfaces_json):
 
     lens.add_surface(index=len(surfaces_json) + 1, is_stop=True)
     lens.set_aperture(aperture_type="EPD", value=10)
-    lens.set_field_type(field_type="angle")
-    lens.add_field(y=0)
-    lens.add_field(y=5)
-    lens.add_wavelength(value=0.55)
+    # === Handle light sources ===
+    if light_sources:
+        first_type = light_sources[0].get("type")
+        if first_type == "infinity":
+            lens.set_field_type("angle")
+            for src in light_sources:
+                angle = src.get("angle", 0)
+                y = np.tan(np.radians(angle))
+                lens.add_field(y=y)
+        elif first_type == "point":
+            lens.set_field_type("object_height")
+            for src in light_sources:
+                y = src.get("y", 0)
+                lens.add_field(y=y)
+    else:
+        lens.set_field_type("angle")
+        lens.add_field(y=0)
+        lens.add_field(y=5)
+
+    # === Handle multiple wavelengths ===
+    if wavelengths:
+        for w in wavelengths:
+            lens.add_wavelength(value=w)
+    else:
+        lens.add_wavelength(value=0.55)
+
     return lens
 
 # -----------------------------------------
