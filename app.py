@@ -271,12 +271,12 @@ def extract_optical_data(lens):
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
-        if True:
-            payload = request.get_json(force=True)
-            surfaces = payload["surfaces"]
-            light_sources = payload.get("lightSources", [])
-            wavelengths = payload.get("wavelengths", [])
-            
+        
+        payload = request.get_json(force=True)
+        surfaces = payload["surfaces"]
+        light_sources = payload.get("lightSources", [])
+        wavelengths = payload.get("wavelengths", [])
+        if surfaces["radius"]!=1e6
             lens = build_lens(surfaces, light_sources, wavelengths)
     
             # Try to assign is_stop to each valid surface until one works
