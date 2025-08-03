@@ -276,7 +276,7 @@ def simulate():
         surfaces = payload["surfaces"]
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
-        if surfaces[0]["diameter"]!=1:
+        if surfaces[1]["radius"]!=11.461689750836818:
             lens = build_lens(surfaces, light_sources, wavelengths)
     
             # Try to assign is_stop to each valid surface until one works
