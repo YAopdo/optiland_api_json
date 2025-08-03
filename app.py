@@ -271,7 +271,7 @@ def extract_optical_data(lens):
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
-        if False:
+        if True:
             payload = request.get_json(force=True)
             surfaces = payload["surfaces"]
             light_sources = payload.get("lightSources", [])
