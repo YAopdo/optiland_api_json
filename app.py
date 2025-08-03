@@ -12,6 +12,78 @@ from optiland import optic, analysis
 
 app = Flask(__name__)
 CORS(app)
+def parse_zmx_and_create_optic(zmx_path: str):
+    with open(zmx_path, "r") as f:
+        lines = f.readlines()
+
+    lens = optic.Optic()
+    aperture_value = 5.0
+    wavelengths = []
+    fields = []
+
+    index = None
+    radius = None
+    thickness = None
+    n = None
+    abbe = None
+    is_stop = False
+
+    def add_surface_if_ready():
+        nonlocal index, radius, thickness, n, abbe, is_stop
+        if index is not None and radius is not None and thickness is not None:
+            kwargs = {
+                "index": index,
+                "radius": radius,
+                "thickness": thickness,
+                "is_stop": is_stop
+            }
+            if n is not None and abbe is not None:
+                kwargs["material"] = AbbeMaterial(n=n, abbe=abbe)
+            lens.add_surface(**kwargs)
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("ENPD"):
+            aperture_value = float(line.split()[1])
+        elif line.startswith("WAVL"):
+            wavelengths = list(map(float, line.split()[1:]))
+        elif line.startswith("YFLN"):
+            fields = list(map(float, line.split()[1:]))
+        elif line.startswith("SURF"):
+            add_surface_if_ready()
+            index = int(line.split()[1])
+            radius = None
+            thickness = None
+            n = None
+            abbe = None
+            is_stop = False
+        elif "STOP" in line:
+            is_stop = True
+        elif line.startswith("CURV"):
+            curv = float(line.split()[1])
+            radius = np.inf if curv == 0 else 1.0 / curv
+        elif line.startswith("DISZ"):
+            val = line.split()[1]
+            thickness = np.inf if val == "INFINITY" else float(val)
+        elif line.startswith("GLAS"):
+            parts = line.split()
+            n = float(parts[4])
+            abbe = float(parts[5])
+
+    add_surface_if_ready()
+    lens.add_surface(index=index + 1)
+    lens.set_aperture(aperture_type="EPD", value=aperture_value)
+
+    lens.set_field_type("angle")
+    for y in fields:
+        lens.add_field(y=y)
+
+    for i, w in enumerate(wavelengths):
+        lens.add_wavelength(value=w, is_primary=(i == 1))
+
+    return lens
 
 # -----------------------------------------
 # Lens Builder
@@ -198,57 +270,60 @@ def extract_optical_data(lens):
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
-        payload = request.get_json(force=True)
-        surfaces = payload["surfaces"]
-        light_sources = payload.get("lightSources", [])
-        wavelengths = payload.get("wavelengths", [])
-        
-        lens = build_lens(surfaces, light_sources, wavelengths)
-
-        # Try to assign is_stop to each valid surface until one works
-        valid_indices = list(range(1, len(lens.surface_group.surfaces)))
-        success = False
-        
-        for i in valid_indices:
-            # Reset all is_stop flags
-            for s in lens.surface_group.surfaces:
-                s.is_stop = False
-            # Set candidate
-            lens.surface_group.surfaces[i].is_stop = True
-        
-            try:
-                # === Trace rays and compute best image distance ===
-                lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
-                
-                # Use the last two surfaces to estimate best intersection
-                x_all = lens.surface_group.z
-                y_all = lens.surface_group.y
-                
-                x0 = x_all[-2]  # second to last surface (before image)
-                y0 = y_all[-2]
-                x1 = x_all[-1]  # last surface (image plane, initial guess)
-                y1 = y_all[-1]
-                
-                best_point = best_intersection_point(x0, y0, x1, y1)
-                image_distance = best_point[0] - x0[len(x0) // 2]
-                
-                # Set the new thickness for the second-to-last surface
-                lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)
-                
-                # Now extract data after adjusting image plane
-                data = extract_optical_data(lens)
-                success = True
-
-                print(f"Successfully set stop surface at index {i}")
-                break
-            except Exception as e:
-                print(f"Surface {i} failed as stop surface: {e}")
-                continue
-        
-        if not success:
-            raise RuntimeError("No valid stop surface found.")
-        
-
+        if False:
+            payload = request.get_json(force=True)
+            surfaces = payload["surfaces"]
+            light_sources = payload.get("lightSources", [])
+            wavelengths = payload.get("wavelengths", [])
+            
+            lens = build_lens(surfaces, light_sources, wavelengths)
+    
+            # Try to assign is_stop to each valid surface until one works
+            valid_indices = list(range(1, len(lens.surface_group.surfaces)))
+            success = False
+            
+            for i in valid_indices:
+                # Reset all is_stop flags
+                for s in lens.surface_group.surfaces:
+                    s.is_stop = False
+                # Set candidate
+                lens.surface_group.surfaces[i].is_stop = True
+            
+                try:
+                    # === Trace rays and compute best image distance ===
+                    lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
+                    
+                    # Use the last two surfaces to estimate best intersection
+                    x_all = lens.surface_group.z
+                    y_all = lens.surface_group.y
+                    
+                    x0 = x_all[-2]  # second to last surface (before image)
+                    y0 = y_all[-2]
+                    x1 = x_all[-1]  # last surface (image plane, initial guess)
+                    y1 = y_all[-1]
+                    
+                    best_point = best_intersection_point(x0, y0, x1, y1)
+                    image_distance = best_point[0] - x0[len(x0) // 2]
+                    
+                    # Set the new thickness for the second-to-last surface
+                    lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)
+                    
+                    # Now extract data after adjusting image plane
+                    data = extract_optical_data(lens)
+                    success = True
+    
+                    print(f"Successfully set stop surface at index {i}")
+                    break
+                except Exception as e:
+                    print(f"Surface {i} failed as stop surface: {e}")
+                    continue
+            
+            if not success:
+                raise RuntimeError("No valid stop surface found.")
+        else:
+            zmx_path='/etc/secrets/lens_.zmx'
+            lens = parse_zmx_and_create_optic(zmx_path)
+            data = extract_optical_data(lens)
         return jsonify(data)
 
     except Exception as e:
