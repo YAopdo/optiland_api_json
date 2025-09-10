@@ -178,7 +178,22 @@ def extract_optical_data(lens):
     spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
     distortion = analysis.Distortion(lens)
-
+    # === Paraxial ===
+    paraxial=[]
+    paraxial.append({
+        "magnification": lens.paraxial.magnification(),
+        "invariant": lens.paraxial.invariant(),
+        "F-Number": lens.paraxial.FNO(),
+        "Exit_pupil_diameter": lens.paraxial.XPD(),
+        "Entrance_pupil_diameter": lens.paraxial.EPD(),
+        "Front_focal_length": lens.paraxial.f1(),
+        "Back_focal_point": lens.paraxial.f2(),
+        "Front_focal_point": lens.paraxial.F1(),
+        "Front_principal_plane": lens.paraxial.P1(),
+        "Back_principal_plane": lens.paraxial.P2(),
+        "Front_nodal_plane": lens.paraxial.N1(),
+        "Back_nodal_plane": lens.paraxial.N2(),
+    })
     # === Ray Trace Paths ===
     all_fields_data = []
     for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
@@ -259,7 +274,7 @@ def extract_optical_data(lens):
     output["all_fields_rays"] = all_fields_data
     output["surface_diameters"] = diameters  # still optional for other parts
     output["surfaces"] = surfaces            # ✅ New structured surface objects
-
+    output["paraxial"] = paraxial
     return output
 
 
