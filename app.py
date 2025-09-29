@@ -326,6 +326,7 @@ def simulate():
                     y1 = y_all[-1]
                     
                     best_point = best_intersection_point(x0, y0, x1, y1)
+                    print(best_point)
                     image_distance = best_point[0] - x0[len(x0) // 2]
                     
                     # Set the new thickness for the second-to-last surface
