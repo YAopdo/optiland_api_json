@@ -175,6 +175,7 @@ def best_intersection_point(x0, y0, x1, y1):
     return best_point  # [x, y]
 
 def extract_optical_data(lens):
+    print("lens info at extract_optical_data")
     lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
@@ -290,6 +291,7 @@ def simulate():
         
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
+        print("1- surfaces at_simulate", surfaces)
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
         notfake=True
