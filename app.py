@@ -334,7 +334,7 @@ def simulate():
                     
                     # Now extract data after adjusting image plane
                     data = extract_optical_data(lens)
-                    print(data)
+                    print(data["paraxial"])
                     success = True
     
                     print(f"Successfully set stop surface at index {i}")
