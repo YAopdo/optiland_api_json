@@ -7,11 +7,42 @@ import traceback, os
 import json
 import matplotlib
 from optiland.materials import AbbeMaterial
+import optiland.backend as be
 
-from optiland import optic, analysis
+
+from optiland import optic, analysis, optimization
 
 app = Flask(__name__)
 CORS(app)
+def find_image_plane(lens):
+    problem = optimization.OptimizationProblem()
+    input_data = {
+        "optic": lens,
+        "surface_number": -1,
+        "Hx": 0,
+        "Hy": 0,
+        "num_rays": 5,
+        "wavelength": 0.55,
+        "distribution": "hexapolar",
+    }
+    problem.add_operand(
+    operand_type="rms_spot_size",
+    target=0,
+    weight=1,
+    input_data=input_data,
+    )
+    problem.add_variable(lens, "thickness", surface_number=-2)
+    optimizer = optimization.OptimizerGeneric(problem)
+    optimizer.optimize()
+    print(optimizer.problem.variables.variables[0].value)
+    thicknesses = be.diff(
+    be.ravel(lens.surface_group.positions), append=be.array([be.nan])
+)
+    if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
+        lens.set_thickness(5, len(lens.surface_group.surfaces) - 2)
+        
+    return lens
+
 def parse_zmx_and_create_optic(zmx_path: str):
     with open(zmx_path, "r") as f:
         lines = f.readlines()
@@ -314,7 +345,7 @@ def simulate():
             
                 try:
                     # === Trace rays and compute best image distance ===
-                    lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
+                    '''lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
                     
                     # Use the last two surfaces to estimate best intersection
                     x_all = lens.surface_group.z
@@ -330,8 +361,8 @@ def simulate():
                     image_distance = best_point[0] - x0[len(x0) // 2]
                     
                     # Set the new thickness for the second-to-last surface
-                    lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)
-                    
+                    lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)'''
+                    lens=find_image_plane(lens)
                     # Now extract data after adjusting image plane
                     data = extract_optical_data(lens)
                     print(data["paraxial"])
