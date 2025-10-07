@@ -158,7 +158,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
             lens.set_field_type("angle")
             for src in light_sources:
                 angle = src.get("angle", 0)
-                y = np.tan(np.radians(angle))
+                y = angle
                 lens.add_field(y=y)
         elif first_type == "point":
             lens.set_field_type("object_height")
