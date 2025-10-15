@@ -382,11 +382,13 @@ def simulate():
             lens = parse_zmx_and_create_optic(zmx_path)
             data = extract_optical_data(lens)
         print('data')
-        print(data)
+        print(data["all_fields_rays"])
         return jsonify(data)
 
     except Exception as e:
         traceback.print_exc()
+        print('error:....')
+        print(str(e))
         return jsonify({"error": str(e)}), 500
 
 # -----------------------------------------
