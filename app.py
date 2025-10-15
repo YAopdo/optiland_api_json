@@ -205,110 +205,140 @@ def best_intersection_point(x0, y0, x1, y1):
     best_point, *_ = np.linalg.lstsq(A, b, rcond=None)
     return best_point  # [x, y]
 
+
+def safe_float(value):
+    """Convert to float if finite, else skip by returning None."""
+    try:
+        val = float(value)
+        return val if np.isfinite(val) else None
+    except Exception:
+        return None
+
+def safe_list(arr):
+    """Convert array to list and filter out non-finite values."""
+    if arr is None:
+        return []
+    arr = np.array(arr, dtype=float).flatten()
+    return [float(v) for v in arr if np.isfinite(v)]
+
 def extract_optical_data(lens):
     print("lens info at extract_optical_data")
     lens.info()
+
     spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
     distortion = analysis.Distortion(lens)
+
     # === Paraxial ===
-    paraxial=[]
-    paraxial.append({
-        "magnification": lens.paraxial.magnification(),
-        "invariant": lens.paraxial.invariant(),
-        "F-Number": lens.paraxial.FNO(),
-        "Exit_pupil_diameter": lens.paraxial.XPD(),
-        "Entrance_pupil_diameter": lens.paraxial.EPD(),
-        "Front_focal_length": lens.paraxial.f1(),
-        "Back_focal_point": lens.paraxial.f2(),
-        "Front_focal_point": lens.paraxial.F1(),
-        "Front_principal_plane": lens.paraxial.P1(),
-        "Back_principal_plane": lens.paraxial.P2(),
-        "Front_nodal_plane": lens.paraxial.N1(),
-        "Back_nodal_plane": lens.paraxial.N2(),
-    })
+    paraxial = [{
+        "magnification": safe_float(lens.paraxial.magnification()),
+        "invariant": safe_float(lens.paraxial.invariant()),
+        "F-Number": safe_float(lens.paraxial.FNO()),
+        "Exit_pupil_diameter": safe_float(lens.paraxial.XPD()),
+        "Entrance_pupil_diameter": safe_float(lens.paraxial.EPD()),
+        "Front_focal_length": safe_float(lens.paraxial.f1()),
+        "Back_focal_point": safe_float(lens.paraxial.f2()),
+        "Front_focal_point": safe_float(lens.paraxial.F1()),
+        "Front_principal_plane": safe_float(lens.paraxial.P1()),
+        "Back_principal_plane": safe_float(lens.paraxial.P2()),
+        "Front_nodal_plane": safe_float(lens.paraxial.N1()),
+        "Back_nodal_plane": safe_float(lens.paraxial.N2()),
+    }]
+    paraxial = [{k: v for k, v in d.items() if v is not None} for d in paraxial]
+
     # === Ray Trace Paths ===
     all_fields_data = []
     for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
-        lens.trace(
-            Hx=Hx, Hy=Hy,
-            wavelength=0.55,
-            num_rays=10,
-            distribution="line_y"
-        )
-        all_fields_data.append({
-            "field_number": f_no,
-            "Hx": Hx,
-            "Hy": Hy,
-            "x": lens.surface_group.z.tolist(),
-            "y": lens.surface_group.y.tolist(),
-        })
+        lens.trace(Hx=Hx, Hy=Hy, wavelength=0.55, num_rays=10, distribution="line_y")
+        x_list = safe_list(lens.surface_group.z.tolist())
+        y_list = safe_list(lens.surface_group.y.tolist())
+        if x_list and y_list:
+            all_fields_data.append({
+                "field_number": f_no,
+                "Hx": safe_float(Hx),
+                "Hy": safe_float(Hy),
+                "x": x_list,
+                "y": y_list,
+            })
 
     # === Surface Geometry ===
-    diameters = [2 * s.semi_aperture for s in lens.surface_group.surfaces]
-
-    surfaces = [
-        {
-            "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
-            "thickness": float(s.thickness) if np.isfinite(s.thickness) else 1e6,
-            "diameter": float(2 * s.semi_aperture),
-            "Is_Lens": float(type(s.material_post.abbe)==np.ndarray)
+    diameters = [safe_float(2 * s.semi_aperture) for s in lens.surface_group.surfaces if np.isfinite(s.semi_aperture)]
+    surfaces = []
+    for s in lens.surface_group.surfaces:
+        radius = safe_float(s.geometry.radius)
+        thickness = safe_float(s.thickness)
+        diameter = safe_float(2 * s.semi_aperture)
+        is_lens = float(isinstance(s.material_post.abbe, np.ndarray))
+        entry = {
+            "radius": radius if radius is not None else 1e6,
+            "thickness": thickness if thickness is not None else 1e6,
+            "diameter": diameter,
+            "Is_Lens": is_lens
         }
-        for s in lens.surface_group.surfaces
-    ]
+        surfaces.append({k: v for k, v in entry.items() if v is not None})
 
     output = {}
 
     # === Spot Diagram ===
     spot_data = np.array(spot.data)
     output["spot"] = {}
-    shape = spot_data.shape
-    for i in range(shape[0]):
-        for j in range(shape[1]):
+    for i in range(spot_data.shape[0]):
+        for j in range(spot_data.shape[1]):
             key = f"{i},{j}"
             s = spot_data[i][j]
-            output["spot"][key] = {
-                "x": s.x.tolist(),
-                "y_centered": (s.y - np.mean(s.y)).tolist()
-            }
+            x = safe_list(s.x)
+            y_centered = safe_list(s.y - np.mean(s.y))
+            if x and y_centered:
+                output["spot"][key] = {"x": x, "y_centered": y_centered}
 
     # === Ray Fan ===
     output["rayfan"] = {
-        "Py": fan.data['Py'].tolist(),
-        "Px": fan.data['Px'].tolist(),
+        "Py": safe_list(fan.data.get('Py', [])),
+        "Px": safe_list(fan.data.get('Px', [])),
         "fields": [],
     }
 
     for i, field in enumerate(fan.fields):
         field_entry = {"field": str(field), "wavelengths": []}
         for j, wl in enumerate(fan.wavelengths):
-            y_data = fan.data[str(field)][str(wl)]['y']
-            x_data = fan.data[str(field)][str(wl)]['x']
-            field_entry["wavelengths"].append({
-                "wavelength": wl,
-                "y": y_data.tolist(),
-                "x": x_data.tolist()
-            })
-        output["rayfan"]["fields"].append(field_entry)
+            y_data = safe_list(fan.data[str(field)][str(wl)]['y'])
+            x_data = safe_list(fan.data[str(field)][str(wl)]['x'])
+            if y_data and x_data:
+                field_entry["wavelengths"].append({
+                    "wavelength": safe_float(wl),
+                    "y": y_data,
+                    "x": x_data
+                })
+        if field_entry["wavelengths"]:
+            output["rayfan"]["fields"].append(field_entry)
 
     # === Distortion ===
-    yaxis = np.linspace(
-        distortion.optic.fields.y_fields[0],
-        distortion.optic.fields.y_fields[-1],
-        distortion.num_points
-    )
-    output["distortion"] = {
-        "yaxis": yaxis.tolist(),
-        "wavelengths": [float(w) for w in distortion.wavelengths],
-        "data": [d.tolist() for d in distortion.data]
-    }
+    try:
+        yaxis = np.linspace(
+            distortion.optic.fields.y_fields[0],
+            distortion.optic.fields.y_fields[-1],
+            distortion.num_points
+        )
+        distortion_data = [safe_list(d) for d in distortion.data]
+        output["distortion"] = {
+            "yaxis": safe_list(yaxis),
+            "wavelengths": [safe_float(w) for w in distortion.wavelengths if np.isfinite(w)],
+            "data": [d for d in distortion_data if d],
+        }
+    except Exception:
+        output["distortion"] = {}
 
     # === Final Outputs ===
     output["all_fields_rays"] = all_fields_data
-    output["surface_diameters"] = diameters  # still optional for other parts
-    output["surfaces"] = surfaces            # ✅ New structured surface objects
+    output["surface_diameters"] = [d for d in diameters if d is not None]
+    output["surfaces"] = surfaces
     output["paraxial"] = paraxial
+
+    # Final cleanup — remove empty sections
+    output = {k: v for k, v in output.items() if v not in [None, [], {}, [None]]}
+
     return output
+
 
 
 
