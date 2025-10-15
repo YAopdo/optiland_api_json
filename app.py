@@ -357,6 +357,7 @@ def simulate():
                     y1 = y_all[-1]
                     
                     best_point = best_intersection_point(x0, y0, x1, y1)
+                    print('best_point')
                     print(best_point)
                     image_distance = best_point[0] - x0[len(x0) // 2]
                     
@@ -380,6 +381,8 @@ def simulate():
             zmx_path='/etc/secrets/lens_.zmx'
             lens = parse_zmx_and_create_optic(zmx_path)
             data = extract_optical_data(lens)
+        print('data')
+        print(data)
         return jsonify(data)
 
     except Exception as e:
