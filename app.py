@@ -187,10 +187,16 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
 
     # === Handle multiple wavelengths ===
     if wavelengths:
+        ISPRIME=True
         for w in wavelengths:
-            lens.add_wavelength(value=w)
+            print("wavelength: " , flush=True)
+            print(w,flush=True)
+            if ISPRIME:
+                lens.add_wavelength(value=w,is_primary=True)
+            else:
+                lens.add_wavelength(value=w)
     else:
-        lens.add_wavelength(value=0.55)
+        lens.add_wavelength(value=0.55,is_primary=True)
 
     return lens
 
