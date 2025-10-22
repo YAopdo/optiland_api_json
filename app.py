@@ -43,6 +43,8 @@ def find_image_plane(lens):
     thicknesses = be.diff(
     be.ravel(lens.surface_group.positions), append=be.array([be.nan])
 )
+    print("thickness",flush=True)
+    print(thicknesses,flush=True)
     if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
         lens.set_thickness(5, len(lens.surface_group.surfaces) - 2)
         
@@ -139,9 +141,16 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
         # Construct material using refractive index, fallback to air
         if "index" in s:
             material = AbbeMaterial(n=s["index"], abbe=60)
+            print("at surface index :" + str(i)+ " reffrective index : " + str(s["index"]), flush=True)
         else:
             material = "Air"
-
+        print (i, flush=True)
+        print (s["radius"], flush=True)
+        print(s["thickness"], flush=True)
+        print(s.get("surface_type"), flush=True)
+        print(s.get("conic"), flush=True)
+        print(s.get("coefficients"), flush=True)
+        
         kwargs = {
             "index":        i,
             "radius":       s["radius"],
