@@ -330,7 +330,13 @@ def simulate():
         
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
-        print("1- surfaces at_simulate", surfaces)
+
+        # Fix None radius values - None means infinite radius (planar surface)
+        for surface in surfaces:
+            if surface.get("radius") is None:
+                surface["radius"] = np.inf
+
+        print("1- surfaces at_simulate", surfaces, flush=True)
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
         notfake=True
