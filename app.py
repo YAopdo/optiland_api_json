@@ -131,7 +131,9 @@ def parse_zmx_and_create_optic(zmx_path: str):
 def build_lens(surfaces_json, light_sources=None, wavelengths=None):
     lens = optic.Optic()
     print("🔎 build_lens called with surfaces_json:", json.dumps(surfaces_json, indent=2), flush=True)
-
+    print('wavelengths',flush=True)
+    print(wavelengths,flush=True)
+    
     # --- Determine object plane thickness ---
     if light_sources and light_sources[0].get("type") == "point":
         x_object = light_sources[0].get("x", 0)
