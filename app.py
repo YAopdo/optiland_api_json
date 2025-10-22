@@ -355,6 +355,8 @@ def simulate():
         print("1- surfaces at_simulate", surfaces, flush=True)
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
+        print("wave_length",flush=True)
+        print(wavelengths,flush=True)
         notfake=True
         for i in range(len(surfaces)):
             if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
