@@ -16,13 +16,18 @@ app = Flask(__name__)
 CORS(app)
 def find_image_plane(lens):
     problem = optimization.OptimizationProblem()
+    # Use the primary wavelength from the lens instead of hardcoded value
+    primary_wavelength = lens.wavelengths.primary_wavelength
+    if primary_wavelength is None:
+        primary_wavelength = 0.55  # fallback
+
     input_data = {
         "optic": lens,
         "surface_number": -1,
         "Hx": 0,
         "Hy": 0,
         "num_rays": 5,
-        "wavelength": 0.55,
+        "wavelength": primary_wavelength,
         "distribution": "hexapolar",
     }
     problem.add_operand(
@@ -267,9 +272,12 @@ def extract_optical_data(lens):
         for j in range(shape[1]):
             key = f"{i},{j}"
             s = spot_data[i][j]
+            # Handle None values in spot data
+            x_data = s.x.tolist() if s.x is not None else []
+            y_data = (s.y - np.mean(s.y)).tolist() if s.y is not None else []
             output["spot"][key] = {
-                "x": s.x.tolist(),
-                "y_centered": (s.y - np.mean(s.y)).tolist()
+                "x": x_data,
+                "y_centered": y_data
             }
 
     # === Ray Fan ===
