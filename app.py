@@ -193,6 +193,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
             print(w,flush=True)
             if ISPRIME:
                 lens.add_wavelength(value=w,is_primary=True)
+                ISPRIME=False
             else:
                 lens.add_wavelength(value=w)
     else:
