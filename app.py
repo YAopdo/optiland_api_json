@@ -15,6 +15,7 @@ from optiland import optic, analysis, optimization
 app = Flask(__name__)
 CORS(app)
 def find_image_plane(lens):
+    lens.info()
     problem = optimization.OptimizationProblem()
     # Use the primary wavelength from the lens instead of hardcoded value
     primary_wavelength = lens.wavelengths.primary_wavelength
@@ -358,7 +359,8 @@ def simulate():
             # Try to assign is_stop to each valid surface until one works
             valid_indices = list(range(1, len(lens.surface_group.surfaces)))
             success = False
-            
+            print("valid_indicies",flush=True)
+            print(valid_indices,flush=True)
             for i in valid_indices:
                 # Reset all is_stop flags
                 for s in lens.surface_group.surfaces:
