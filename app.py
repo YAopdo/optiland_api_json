@@ -18,7 +18,7 @@ def find_image_plane(lens):
     lens.info()
     problem = optimization.OptimizationProblem()
     # Use the primary wavelength from the lens instead of hardcoded value
-    primary_wavelength = lens.wavelengths.primary_wavelength
+    primary_wavelength = lens.primary_wavelength
     if primary_wavelength is None:
         primary_wavelength = 0.55  # fallback
 
