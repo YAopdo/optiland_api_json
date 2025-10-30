@@ -11,6 +11,7 @@ import optiland.backend as be
 
 
 from optiland import optic, analysis, optimization
+from optiland.fileio import load_zemax_file
 
 app = Flask(__name__)
 CORS(app)
@@ -203,6 +204,17 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
 
     return lens
 
+def build_lens_from_zmx(zmx_path):
+    """
+    Load lens from ZMX file using optiland's load_zemax_file function.
+    The ZMX file already contains wavelengths, fields, and aperture settings.
+    """
+    print(f"🔎 Loading ZMX file from: {zmx_path}", flush=True)
+    lens = load_zemax_file(zmx_path)
+    print("✅ ZMX file loaded successfully", flush=True)
+    lens.info()
+    return lens
+
 # -----------------------------------------
 # Optical Data Extractor
 # -----------------------------------------
@@ -256,7 +268,7 @@ def extract_optical_data(lens):
     for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
         lens.trace(
             Hx=Hx, Hy=Hy,
-            wavelength=0.55,
+            wavelength=lens.primary_wavelength,
             num_rays=10,
             distribution="line_y"
         )
@@ -346,27 +358,62 @@ def extract_optical_data(lens):
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
-        
-        payload = request.get_json(force=True)
-        surfaces = payload["surfaces"]
+        # === Check if a ZMX file was uploaded ===
+        if 'zmx_file' in request.files:
+            print("🔎 ZMX file upload detected", flush=True)
+            zmx_file = request.files['zmx_file']
 
-        # Fix None radius values - None means infinite radius (planar surface)
-        for surface in surfaces:
-            if surface.get("radius") is None:
-                surface["radius"] = np.inf
+            # Validate file
+            if zmx_file.filename == '':
+                return jsonify({"error": "No file selected"}), 400
 
-        print("1- surfaces at_simulate", surfaces, flush=True)
-        light_sources = payload.get("lightSources", [])
-        wavelengths = payload.get("wavelengths", [])
-        print("wave_length",flush=True)
-        print(wavelengths,flush=True)
-        notfake=True
-        for i in range(len(surfaces)):
-            if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
-                notfake=False
-        if notfake:
-            lens = build_lens(surfaces, light_sources, wavelengths)
-    
+            # Save temporarily
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            temp_path = os.path.join(temp_dir, f"zmx_upload_{zmx_file.filename}")
+            zmx_file.save(temp_path)
+            print(f"📁 File saved to: {temp_path}", flush=True)
+
+            try:
+                # Build lens from ZMX file
+                lens = build_lens_from_zmx(temp_path)
+                use_optimization = True
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    print(f"🧹 Cleaned up temp file: {temp_path}", flush=True)
+
+        # === Original JSON-based approach ===
+        else:
+            payload = request.get_json(force=True)
+            surfaces = payload["surfaces"]
+
+            # Fix None radius values - None means infinite radius (planar surface)
+            for surface in surfaces:
+                if surface.get("radius") is None:
+                    surface["radius"] = np.inf
+
+            print("1- surfaces at_simulate", surfaces, flush=True)
+            light_sources = payload.get("lightSources", [])
+            wavelengths = payload.get("wavelengths", [])
+            print("wave_length",flush=True)
+            print(wavelengths,flush=True)
+            notfake=True
+            for i in range(len(surfaces)):
+                if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
+                    notfake=False
+            if notfake:
+                lens = build_lens(surfaces, light_sources, wavelengths)
+                use_optimization = True
+            else:
+                # Demo/test case with hardcoded ZMX
+                zmx_path='/etc/secrets/lens_.zmx'
+                lens = parse_zmx_and_create_optic(zmx_path)
+                use_optimization = False
+
+        # === Apply optimization and stop surface finding (if needed) ===
+        if use_optimization:
             # Try to assign is_stop to each valid surface until one works
             valid_indices = list(range(1, len(lens.surface_group.surfaces)))
             success = False
@@ -378,25 +425,25 @@ def simulate():
                     s.is_stop = False
                 # Set candidate
                 lens.surface_group.surfaces[i].is_stop = True
-            
+
                 try:
                     # === Trace rays and compute best image distance ===
                     '''lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
-                    
+
                     # Use the last two surfaces to estimate best intersection
                     x_all = lens.surface_group.z
                     y_all = lens.surface_group.y
-                    
+
                     x0 = x_all[-2]  # second to last surface (before image)
                     y0 = y_all[-2]
                     x1 = x_all[-1]  # last surface (image plane, initial guess)
                     y1 = y_all[-1]
-                    
+
                     best_point = best_intersection_point(x0, y0, x1, y1)
                     print('best_point')
                     print(best_point)
                     image_distance = best_point[0] - x0[len(x0) // 2]
-                    
+
                     # Set the new thickness for the second-to-last surface
                     lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)'''
                     lens=find_image_plane(lens)
@@ -404,18 +451,17 @@ def simulate():
                     data = extract_optical_data(lens)
                     print(data["paraxial"],flush=True)
                     success = True
-    
+
                     print(f"Successfully set stop surface at index {i}")
                     break
                 except Exception as e:
                     print(f"Surface {i} failed as stop surface: {e}",flush=True)
                     continue
-            
+
             if not success:
                 raise RuntimeError("No valid stop surface found.")
         else:
-            zmx_path='/etc/secrets/lens_.zmx'
-            lens = parse_zmx_and_create_optic(zmx_path)
+            # No optimization needed, just extract data
             data = extract_optical_data(lens)
         print('data')
         print(data["all_fields_rays"])
