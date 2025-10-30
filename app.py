@@ -246,15 +246,7 @@ def extract_optical_data(lens):
     lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
-
-    # Try to calculate distortion, but it may fail for some lens configurations
-    distortion = None
-    try:
-        distortion = analysis.Distortion(lens)
-        print("✅ Distortion analysis successful", flush=True)
-    except Exception as e:
-        print(f"⚠️ Distortion analysis failed: {e}", flush=True)
-        print("Continuing without distortion data...", flush=True)
+    distortion = analysis.Distortion(lens)
     # === Paraxial ===
     paraxial=[]
     paraxial.append({
@@ -289,23 +281,13 @@ def extract_optical_data(lens):
         })
 
     # === Surface Geometry ===
-    # Helper function to safely get semi_aperture
-    def get_diameter(surface):
-        try:
-            if surface.semi_aperture is not None and np.isfinite(surface.semi_aperture):
-                return float(2 * surface.semi_aperture)
-            else:
-                return 10.0  # Default diameter
-        except:
-            return 10.0  # Default diameter
-
-    diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
+    diameters = [2 * s.semi_aperture for s in lens.surface_group.surfaces]
 
     surfaces = [
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
             "thickness": float(s.thickness) if np.isfinite(s.thickness) else 1e6,
-            "diameter": get_diameter(s),
+            "diameter": float(2 * s.semi_aperture),
             "Is_Lens": float(type(s.material_post.abbe)==np.ndarray)
         }
         for s in lens.surface_group.surfaces
@@ -349,23 +331,16 @@ def extract_optical_data(lens):
         output["rayfan"]["fields"].append(field_entry)
 
     # === Distortion ===
-    if distortion is not None:
-        try:
-            yaxis = np.linspace(
-                distortion.optic.fields.y_fields[0],
-                distortion.optic.fields.y_fields[-1],
-                distortion.num_points
-            )
-            output["distortion"] = {
-                "yaxis": yaxis.tolist(),
-                "wavelengths": [float(w) for w in distortion.wavelengths],
-                "data": [d.tolist() for d in distortion.data]
-            }
-        except Exception as e:
-            print(f"⚠️ Failed to extract distortion data: {e}", flush=True)
-            output["distortion"] = None
-    else:
-        output["distortion"] = None
+    yaxis = np.linspace(
+        distortion.optic.fields.y_fields[0],
+        distortion.optic.fields.y_fields[-1],
+        distortion.num_points
+    )
+    output["distortion"] = {
+        "yaxis": yaxis.tolist(),
+        "wavelengths": [float(w) for w in distortion.wavelengths],
+        "data": [d.tolist() for d in distortion.data]
+    }
 
     # === Final Outputs ===
     output["all_fields_rays"] = all_fields_data
@@ -403,6 +378,7 @@ def simulate():
                 # Build lens from ZMX file
                 lens = build_lens_from_zmx(temp_path)
                 use_optimization = False
+                print('lens created using zmx file',flush=True)
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_path):
