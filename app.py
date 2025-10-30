@@ -246,7 +246,15 @@ def extract_optical_data(lens):
     lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
     fan = analysis.RayFan(lens)
-    distortion = analysis.Distortion(lens)
+
+    # Try to calculate distortion, but it may fail for some lens configurations
+    distortion = None
+    try:
+        distortion = analysis.Distortion(lens)
+        print("✅ Distortion analysis successful", flush=True)
+    except Exception as e:
+        print(f"⚠️ Distortion analysis failed: {e}", flush=True)
+        print("Continuing without distortion data...", flush=True)
     # === Paraxial ===
     paraxial=[]
     paraxial.append({
@@ -281,13 +289,44 @@ def extract_optical_data(lens):
         })
 
     # === Surface Geometry ===
-    diameters = [2 * s.semi_aperture for s in lens.surface_group.surfaces]
+    # Helper function to safely get diameter
+    draw_called = False
+    def get_diameter(surface):
+        nonlocal draw_called
+        try:
+            if surface.semi_aperture is not None and np.isfinite(surface.semi_aperture):
+                return float(2 * surface.semi_aperture)
+            else:
+                raise ValueError("semi_aperture not available")
+        except:
+            # Call lens.draw() once if not already called
+            if not draw_called:
+                try:
+                    lens.draw()
+                    draw_called = True
+                    print("✅ lens.draw() called to calculate apertures", flush=True)
+                except Exception as e:
+                    print(f"⚠️ lens.draw() failed: {e}", flush=True)
+
+            # Try to use np.max(s.y) for diameter
+            try:
+                if hasattr(surface, 'y') and surface.y is not None:
+                    max_y = np.max(np.abs(surface.y))
+                    if np.isfinite(max_y):
+                        return float(2 * max_y)
+            except Exception as e:
+                print(f"⚠️ Failed to get diameter from surface.y: {e}", flush=True)
+
+            # Last resort: use default
+            return 10.0
+
+    diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
 
     surfaces = [
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
             "thickness": float(s.thickness) if np.isfinite(s.thickness) else 1e6,
-            "diameter": float(2 * s.semi_aperture),
+            "diameter": get_diameter(s),
             "Is_Lens": float(type(s.material_post.n(lens.primary_wavelength))==np.ndarray)
         }
         for s in lens.surface_group.surfaces
@@ -331,16 +370,23 @@ def extract_optical_data(lens):
         output["rayfan"]["fields"].append(field_entry)
 
     # === Distortion ===
-    yaxis = np.linspace(
-        distortion.optic.fields.y_fields[0],
-        distortion.optic.fields.y_fields[-1],
-        distortion.num_points
-    )
-    output["distortion"] = {
-        "yaxis": yaxis.tolist(),
-        "wavelengths": [float(w) for w in distortion.wavelengths],
-        "data": [d.tolist() for d in distortion.data]
-    }
+    if distortion is not None:
+        try:
+            yaxis = np.linspace(
+                distortion.optic.fields.y_fields[0],
+                distortion.optic.fields.y_fields[-1],
+                distortion.num_points
+            )
+            output["distortion"] = {
+                "yaxis": yaxis.tolist(),
+                "wavelengths": [float(w) for w in distortion.wavelengths],
+                "data": [d.tolist() for d in distortion.data]
+            }
+        except Exception as e:
+            print(f"⚠️ Failed to extract distortion data: {e}", flush=True)
+            output["distortion"] = None
+    else:
+        output["distortion"] = None
 
     # === Final Outputs ===
     output["all_fields_rays"] = all_fields_data
