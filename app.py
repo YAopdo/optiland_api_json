@@ -377,7 +377,7 @@ def simulate():
             try:
                 # Build lens from ZMX file
                 lens = build_lens_from_zmx(temp_path)
-                use_optimization = True
+                use_optimization = False
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_path):
