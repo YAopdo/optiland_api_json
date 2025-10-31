@@ -15,6 +15,23 @@ from optiland.fileio import load_zemax_file
 
 app = Flask(__name__)
 CORS(app)
+
+def sanitize_for_json(obj):
+    """
+    Recursively replace NaN and Inf values with None for valid JSON serialization.
+    """
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, (float, np.floating)):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return float(obj)
+    elif isinstance(obj, (np.ndarray,)):
+        return sanitize_for_json(obj.tolist())
+    else:
+        return obj
 def find_image_plane(lens):
     lens.info()
     problem = optimization.OptimizationProblem()
@@ -512,7 +529,10 @@ def simulate():
             data = extract_optical_data(lens)
         print('data')
         print(data["all_fields_rays"])
-        return jsonify(data)
+
+        # Sanitize NaN and Inf values before returning JSON
+        clean_data = sanitize_for_json(data)
+        return jsonify(clean_data)
 
     except Exception as e:
         traceback.print_exc()
