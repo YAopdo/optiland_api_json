@@ -422,14 +422,15 @@ def save_lens_to_json(lens):
     temp_path = os.path.join(temp_dir, f"lens_export_{os.getpid()}.json")
 
     try:
-        # Save lens to JSON file
+        # Save lens to JSON file (returns None, just writes to file)
         save_optiland_file(lens, temp_path)
         print(f"✅ Lens saved to: {temp_path}", flush=True)
 
-        # Read the JSON file
+        # Read the JSON file that was created
         with open(temp_path, 'r') as f:
             lens_json = json.load(f)
 
+        print(f"✅ Lens JSON loaded successfully, type: {type(lens_json)}", flush=True)
         return lens_json
     finally:
         # Clean up temp file
