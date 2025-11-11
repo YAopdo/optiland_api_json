@@ -562,19 +562,16 @@ def simulate():
         # Save lens as JSON and add to response
         try:
             lens_json = save_lens_to_json(lens)
-            data["lens_file"] = lens_json
-            print("✅ Lens JSON file included in response", flush=True)
-            print(f"🔍 lens_file type: {type(lens_json)}", flush=True)
-            print(f"🔍 lens_file preview: {str(lens_json)[:200]}", flush=True)
+            # Convert to JSON string to avoid Infinity serialization issues
+            # Frontend will save this string directly as a file
+            data["lens_file"] = json.dumps(lens_json, indent=2, allow_nan=True)
+            print("✅ Lens JSON file included in response as string", flush=True)
         except Exception as e:
             print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
             data["lens_file"] = None
 
-        # Sanitize NaN and Inf values before returning JSON
-        # BUT exclude lens_file from sanitization to preserve its original format
-        lens_file_backup = data.pop("lens_file", None)
+        # Sanitize NaN and Inf values before returning JSON (lens_file is already a string, so it won't be affected)
         clean_data = sanitize_for_json(data)
-        clean_data["lens_file"] = lens_file_backup  # Add back unsanitized
         return jsonify(clean_data)
 
     except Exception as e:
