@@ -482,7 +482,7 @@ def simulate():
                 if surface.get("radius") is None:
                     surface["radius"] = np.inf
 
-            print("1- surfaces at_simulate", surfaces, flush=True)
+            
             light_sources = payload.get("lightSources", [])
             wavelengths = payload.get("wavelengths", [])
             print("wave_length",flush=True)
@@ -492,6 +492,11 @@ def simulate():
                 if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
                     notfake=False
             if notfake:
+                print('__________________________________',flush=True)
+                print("1- surfaces at_simulate", surfaces, flush=True)
+                print("1- wavelength at_simulate",wavelengths,flush=True)
+                print("1- light_sources at_simulate",light_sources,flush=True)
+                print('__________________________________',flush=True)
                 lens = build_lens(surfaces, light_sources, wavelengths)
                 use_optimization = True
             else:
