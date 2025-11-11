@@ -571,7 +571,10 @@ def simulate():
             data["lens_file"] = None
 
         # Sanitize NaN and Inf values before returning JSON
+        # BUT exclude lens_file from sanitization to preserve its original format
+        lens_file_backup = data.pop("lens_file", None)
         clean_data = sanitize_for_json(data)
+        clean_data["lens_file"] = lens_file_backup  # Add back unsanitized
         return jsonify(clean_data)
 
     except Exception as e:
