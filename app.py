@@ -558,6 +558,8 @@ def simulate():
             lens_json = save_lens_to_json(lens)
             data["lens_file"] = lens_json
             print("✅ Lens JSON file included in response", flush=True)
+            print(f"🔍 lens_file type: {type(lens_json)}", flush=True)
+            print(f"🔍 lens_file preview: {str(lens_json)[:200]}", flush=True)
         except Exception as e:
             print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
             data["lens_file"] = None
