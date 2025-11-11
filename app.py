@@ -11,7 +11,7 @@ import optiland.backend as be
 
 
 from optiland import optic, analysis, optimization
-from optiland.fileio import load_zemax_file
+from optiland.fileio import load_zemax_file, save_optiland_file
 
 app = Flask(__name__)
 CORS(app)
@@ -412,7 +412,30 @@ def extract_optical_data(lens):
     output["paraxial"] = paraxial
     return output
 
+def save_lens_to_json(lens):
+    """
+    Save the lens to a temporary JSON file using optiland's save_optiland_file,
+    read the contents, and return as a dict.
+    """
+    import tempfile
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, f"lens_export_{os.getpid()}.json")
 
+    try:
+        # Save lens to JSON file
+        save_optiland_file(lens, temp_path)
+        print(f"✅ Lens saved to: {temp_path}", flush=True)
+
+        # Read the JSON file
+        with open(temp_path, 'r') as f:
+            lens_json = json.load(f)
+
+        return lens_json
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            print(f"🧹 Cleaned up temp lens file: {temp_path}", flush=True)
 
 # -----------------------------------------
 # API Route
@@ -529,6 +552,15 @@ def simulate():
             data = extract_optical_data(lens)
         print('data')
         print(data["all_fields_rays"])
+
+        # Save lens as JSON and add to response
+        try:
+            lens_json = save_lens_to_json(lens)
+            data["lens_file"] = lens_json
+            print("✅ Lens JSON file included in response", flush=True)
+        except Exception as e:
+            print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
+            data["lens_file"] = None
 
         # Sanitize NaN and Inf values before returning JSON
         clean_data = sanitize_for_json(data)
