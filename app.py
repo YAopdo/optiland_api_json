@@ -64,8 +64,8 @@ def find_image_plane(lens):
 )
     print("thickness",flush=True)
     print(thicknesses,flush=True)
-    if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
-        lens.set_thickness(5, len(lens.surface_group.surfaces) - 2)
+    #if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
+    #    lens.set_thickness(5, len(lens.surface_group.surfaces) - 2)
         
     return lens
 
@@ -428,7 +428,10 @@ def save_lens_to_json(lens):
 
         # Read the JSON file that was created
         with open(temp_path, 'r') as f:
-            lens_json = json.load(f)
+            file_content = f.read()
+
+        print(f"🔍 Raw file first 500 chars: {file_content[:500]}", flush=True)
+        lens_json = json.loads(file_content)
 
         print(f"✅ Lens JSON loaded successfully, type: {type(lens_json)}", flush=True)
         return lens_json
