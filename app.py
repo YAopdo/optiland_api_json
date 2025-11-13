@@ -64,8 +64,8 @@ def find_image_plane(lens):
 )
     print("thickness",flush=True)
     print(thicknesses,flush=True)
-    #if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
-    #    lens.set_thickness(5, len(lens.surface_group.surfaces) - 2)
+    if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
+        lens.set_thickness(5, len(lens.surface_group.surfaces) - 2)
         
     return lens
 
