@@ -55,7 +55,7 @@ def find_image_plane(lens):
     weight=1,
     input_data=input_data,
     )
-    problem.add_variable(lens, "thickness", surface_number=-2, min_val=0.01, max_val=100000)
+    problem.add_variable(lens, "thickness", surface_number=-2, min_val=5, max_val=100000)
     optimizer = optimization.OptimizerGeneric(problem)
     optimizer.optimize()
     print(optimizer.problem.variables.variables[0].value)
@@ -64,8 +64,8 @@ def find_image_plane(lens):
 )
     print("thickness",flush=True)
     print(thicknesses,flush=True)
-    if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
-        lens.set_thickness(50, len(lens.surface_group.surfaces) - 2)
+    # if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
+    #     lens.set_thickness(50, len(lens.surface_group.surfaces) - 2)
         
     return lens
 
