@@ -198,6 +198,8 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
         elif first_type == "point":
             lens.set_field_type("object_height")
             for src in light_sources:
+                x = src.get("x", 0)
+                lens.set_thickness(x,0)
                 y = src.get("y", 0)
                 lens.add_field(y=y)
     else:
