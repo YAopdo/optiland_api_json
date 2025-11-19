@@ -33,7 +33,7 @@ def sanitize_for_json(obj):
     else:
         return obj
 def find_image_plane(lens):
-    lens.info()
+    #lens.info()
     problem = optimization.OptimizationProblem()
     # Use the primary wavelength from the lens instead of hardcoded value
     primary_wavelength = lens.primary_wavelength
@@ -62,8 +62,8 @@ def find_image_plane(lens):
     thicknesses = be.diff(
     be.ravel(lens.surface_group.positions), append=be.array([be.nan])
 )
-    print("thickness",flush=True)
-    print(thicknesses,flush=True)
+    #print("thickness",flush=True)
+    #print(thicknesses,flush=True)
     # if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
     #     lens.set_thickness(50, len(lens.surface_group.surfaces) - 2)
         
@@ -211,8 +211,8 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
     if wavelengths:
         ISPRIME=True
         for w in wavelengths:
-            print("wavelength: " , flush=True)
-            print(w,flush=True)
+            #print("wavelength: " , flush=True)
+            #print(w,flush=True)
             if ISPRIME:
                 lens.add_wavelength(value=w,is_primary=True)
                 ISPRIME=False
