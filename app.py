@@ -505,7 +505,10 @@ def simulate():
                 lens = build_lens(surfaces, light_sources, wavelengths)
                 print('last surface distace---------------------',flush=True)
                 print(lens.surface_group.surfaces[-2].thickness,flush=True)
-                use_optimization = True
+                if lens.surface_group.surfaces[-2].thickness==0:
+                    use_optimization = True
+                else:
+                    use_optimization=False
             else:
                 # Demo/test case with hardcoded ZMX
                 zmx_path='/etc/secrets/lens_.zmx'
