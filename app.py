@@ -261,16 +261,18 @@ def best_intersection_point(x0, y0, x1, y1):
     return best_point  # [x, y]
 
 def extract_optical_data(lens):
-    #print("lens info at extract_optical_data")
-    #lens.info()
+    print("✅lens info at extract_optical_data")
+    lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
+    print('spot calculated',flush=True)
     fan = analysis.RayFan(lens)
+    print('✅fan calculated ', flush=True)
 
     # Try to calculate distortion, but it may fail for some lens configurations
     distortion = None
     try:
         distortion = analysis.Distortion(lens)
-        #print("✅ Distortion analysis successful", flush=True)
+        print("✅ Distortion analysis successful", flush=True)
     except Exception as e:
         print(f"⚠️ Distortion analysis failed: {e}", flush=True)
         print("Continuing without distortion data...", flush=True)
@@ -290,6 +292,8 @@ def extract_optical_data(lens):
         "Front_nodal_plane": lens.paraxial.N1(),
         "Back_nodal_plane": lens.paraxial.N2(),
     })
+    print('✅paraxial calculated ', flush=True)
+
     # === Ray Trace Paths ===
     all_fields_data = []
     for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
@@ -306,6 +310,7 @@ def extract_optical_data(lens):
             "x": lens.surface_group.z.tolist(),
             "y": lens.surface_group.y.tolist(),
         })
+    print('✅trace calculated ', flush=True)
 
     # === Surface Geometry ===
     # Helper function to safely get diameter
@@ -340,6 +345,7 @@ def extract_optical_data(lens):
             return 10.0
 
     diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
+    print('✅diameters calculated ', flush=True)
 
     surfaces = [
         {
