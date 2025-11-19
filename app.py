@@ -514,6 +514,11 @@ def simulate():
                 if lens.surface_group.surfaces[-2].thickness==0:
                     use_optimization = True
                 else:
+
+                    for s in lens.surface_group.surfaces:
+                        s.is_stop = False
+                    # Set candidate
+                    lens.surface_group.surfaces[1].is_stop = True
                     use_optimization=False
             else:
                 # Demo/test case with hardcoded ZMX
