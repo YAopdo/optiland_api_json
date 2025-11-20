@@ -311,7 +311,9 @@ def extract_optical_data(lens):
             "y": lens.surface_group.y.tolist(),
         })
     print('✅trace calculated ', flush=True)
-    print('_______x: ', all_fields_data[-1]['x'])
+    all_fields_data[0]['x'][-1][-1]=np.nan
+    all_fields_data[0]['y'][-1][-1]=np.nan
+    
     # === Surface Geometry ===
     # Helper function to safely get diameter
     draw_called = False
