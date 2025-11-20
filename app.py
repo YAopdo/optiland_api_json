@@ -260,7 +260,7 @@ def best_intersection_point(x0, y0, x1, y1):
     best_point, *_ = np.linalg.lstsq(A, b, rcond=None)
     return best_point  # [x, y]
 
-def extract_optical_data(lens):
+def extract_optical_data(lens, surface_diameters=None):
     print("✅lens info at extract_optical_data")
     lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
@@ -303,17 +303,42 @@ def extract_optical_data(lens):
             num_rays=10,
             distribution="line_y"
         )
+
+        # Get ray trace data as numpy arrays
+        x_data = np.array(lens.surface_group.z)  # shape: (num_surfaces, num_rays)
+        y_data = np.array(lens.surface_group.y)  # shape: (num_surfaces, num_rays)
+
+        # Apply ray blocking based on surface diameters if provided
+        if surface_diameters is not None:
+            num_surfaces = y_data.shape[0]
+            num_rays = y_data.shape[1]
+
+            # surface_diameters should match the number of surfaces (excluding object surface)
+            # The lens has: object surface [0], user surfaces [1:N-1], image surface [N-1]
+            for i in range(num_surfaces):
+                # Get the diameter for this surface
+                # surface_diameters[i-1] corresponds to lens surface i (since object surface has index 0)
+                if i > 0 and i <= len(surface_diameters):
+                    diameter = surface_diameters[i-1]
+                    radius = diameter / 2.0
+
+                    # Check each ray at this surface
+                    for j in range(num_rays):
+                        if np.isfinite(y_data[i, j]) and np.abs(y_data[i, j]) > radius:
+                            # Ray exceeds diameter at surface i, block from i-1 to second-to-last surface
+                            if i > 0:  # Make sure i-1 is valid
+                                y_data[i-1:-1, j] = np.nan
+                                x_data[i-1:-1, j] = np.nan
+
         all_fields_data.append({
             "field_number": f_no,
             "Hx": Hx,
             "Hy": Hy,
-            "x": lens.surface_group.z.tolist(),
-            "y": lens.surface_group.y.tolist(),
+            "x": x_data.tolist(),
+            "y": y_data.tolist(),
         })
     print('✅trace calculated ', flush=True)
-    all_fields_data[0]['x'][-1][-1]=np.nan
-    all_fields_data[0]['y'][-1][-1]=np.nan
-    
+
     # === Surface Geometry ===
     # Helper function to safely get diameter
     draw_called = False
@@ -458,6 +483,9 @@ def save_lens_to_json(lens):
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
+        # Initialize surface_diameters as None (will be populated from JSON if available)
+        surface_diameters = None
+
         # === Check if a ZMX file was uploaded ===
         if 'zmx_file' in request.files:
             #print("🔎 ZMX file upload detected", flush=True)
@@ -489,6 +517,12 @@ def simulate():
         else:
             payload = request.get_json(force=True)
             surfaces = payload["surfaces"]
+
+            # Extract diameters from surfaces if available
+            surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
+            if len(surface_diameters) != len(surfaces):
+                # Not all surfaces have diameters, so don't use diameter-based blocking
+                surface_diameters = None
 
             # Fix None radius values - None means infinite radius (planar surface)
             for surface in surfaces:
@@ -564,7 +598,7 @@ def simulate():
                     lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)'''
                     lens=find_image_plane(lens)
                     # Now extract data after adjusting image plane
-                    data = extract_optical_data(lens)
+                    data = extract_optical_data(lens, surface_diameters)
                     #print(data["paraxial"],flush=True)
                     success = True
 
@@ -578,7 +612,7 @@ def simulate():
                 raise RuntimeError("No valid stop surface found.")
         else:
             # No optimization needed, just extract data
-            data = extract_optical_data(lens)
+            data = extract_optical_data(lens, surface_diameters)
         # print('data')
         # print(data["all_fields_rays"])
 
