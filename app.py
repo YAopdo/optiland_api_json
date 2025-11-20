@@ -338,7 +338,31 @@ def extract_optical_data(lens, surface_diameters=None):
             "y": y_data.tolist(),
         })
     print('✅trace calculated ', flush=True)
+    #===3d ray
+    # === Ray Trace Paths ===
+    all_fields_data3d = []
+    for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
+        lens.trace(
+            Hx=Hx, Hy=Hy,
+            wavelength=lens.primary_wavelength,
+            num_rays=10,
+            distribution="hexapolar"
+        )
 
+        # Get ray trace data as numpy arrays
+        x_data3d = np.array(lens.surface_group.z)  # shape: (num_surfaces, num_rays)
+        y_data3d = np.array(lens.surface_group.y)  # shape: (num_surfaces, num_rays)
+        z_data3d = np.array(lens.surface_group.x)  # shape: (num_surfaces, num_rays)
+
+        all_fields_data3d.append({
+            "field_number": f_no,
+            "Hx": Hx,
+            "Hy": Hy,
+            "x": x_data3d.tolist(),
+            "y": y_data3d.tolist(),
+            "z": z_data3d.tolist(),
+            
+        })
     # === Surface Geometry ===
     # Helper function to safely get diameter
     draw_called = False
@@ -442,6 +466,8 @@ def extract_optical_data(lens, surface_diameters=None):
 
     # === Final Outputs ===
     output["all_fields_rays"] = all_fields_data
+    output["all_fields_rays_3d"] = all_fields_data3d
+    
     output["surface_diameters"] = diameters  # still optional for other parts
     output["surfaces"] = surfaces            # ✅ New structured surface objects
     output["paraxial"] = paraxial
