@@ -327,8 +327,8 @@ def extract_optical_data(lens, surface_diameters=None):
                         if np.isfinite(y_data[i, j]) and np.abs(y_data[i, j]) > radius:
                             # Ray exceeds diameter at surface i, block from i-1 to second-to-last surface
                             if i > 0:  # Make sure i-1 is valid
-                                y_data[i:-1, j] = np.nan
-                                x_data[i:-1, j] = np.nan
+                                y_data[i+1:-1, j] = np.nan
+                                x_data[i+1:-1, j] = np.nan
 
         all_fields_data.append({
             "field_number": f_no,
