@@ -542,6 +542,7 @@ def simulate():
         # === Original JSON-based approach ===
         else:
             payload = request.get_json(force=True)
+            print('Simulation has been called----------------', flush=True)
             surfaces = payload["surfaces"]
 
             # Extract diameters from surfaces if available
