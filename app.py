@@ -262,7 +262,7 @@ def best_intersection_point(x0, y0, x1, y1):
 
 def extract_optical_data(lens, surface_diameters=None):
     print("✅lens info at extract_optical_data")
-    lens.info()
+    #lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
     print('spot calculated',flush=True)
     fan = analysis.RayFan(lens)
