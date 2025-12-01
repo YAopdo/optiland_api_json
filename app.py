@@ -278,6 +278,11 @@ def extract_optical_data(lens, surface_diameters=None):
         print("Continuing without distortion data...", flush=True)
     # === Paraxial ===
     paraxial=[]
+    print("Front_focal_length:",flush=True)
+    print(lens.paraxial.f1(),flush=True)
+    print("Back_focal_length:",flush=True)
+    print(lens.paraxial.f2(),flush=True)
+    
     paraxial.append({
         "magnification": lens.paraxial.magnification(),
         "invariant": lens.paraxial.invariant(),
@@ -572,8 +577,8 @@ def simulate():
                 # print("1- light_sources at_simulate",light_sources,flush=True)
                 # print('__________________________________',flush=True)
                 lens = build_lens(surfaces, light_sources, wavelengths)
-                print('last surface distace---------------------',flush=True)
-                print(lens.surface_group.surfaces[-2].thickness,flush=True)
+                #print('last surface distace---------------------',flush=True)
+                #print(lens.surface_group.surfaces[-2].thickness,flush=True)
                 if lens.surface_group.surfaces[-2].thickness==0:
                     use_optimization = True
                 else:
