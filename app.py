@@ -230,7 +230,7 @@ def build_lens_from_zmx(zmx_path):
     """
     #print(f"🔎 Loading ZMX file from: {zmx_path}", flush=True)
     lens = load_zemax_file(zmx_path)
-    print("✅ ZMX file loaded successfully", flush=True)
+    #print("✅ ZMX file loaded successfully", flush=True)
     #lens.info()
     return lens
 
@@ -261,18 +261,18 @@ def best_intersection_point(x0, y0, x1, y1):
     return best_point  # [x, y]
 
 def extract_optical_data(lens, surface_diameters=None):
-    print("✅lens info at extract_optical_data")
+    #print("✅lens info at extract_optical_data")
     #lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
-    print('spot calculated',flush=True)
+    #print('spot calculated',flush=True)
     fan = analysis.RayFan(lens)
-    print('✅fan calculated ', flush=True)
+    #print('✅fan calculated ', flush=True)
 
     # Try to calculate distortion, but it may fail for some lens configurations
     distortion = None
     try:
         distortion = analysis.Distortion(lens)
-        print("✅ Distortion analysis successful", flush=True)
+        #print("✅ Distortion analysis successful", flush=True)
     except Exception as e:
         print(f"⚠️ Distortion analysis failed: {e}", flush=True)
         print("Continuing without distortion data...", flush=True)
@@ -297,7 +297,7 @@ def extract_optical_data(lens, surface_diameters=None):
         "Front_nodal_plane": lens.paraxial.N1(),
         "Back_nodal_plane": lens.paraxial.N2(),
     })
-    print('✅paraxial calculated ', flush=True)
+    #print('✅paraxial calculated ', flush=True)
 
     # === Ray Trace Paths ===
     all_fields_data = []
@@ -342,7 +342,7 @@ def extract_optical_data(lens, surface_diameters=None):
             "x": x_data.tolist(),
             "y": y_data.tolist(),
         })
-    print('✅trace calculated ', flush=True)
+    #print('✅trace calculated ', flush=True)
     #===3d ray
     # === Ray Trace Paths ===
     all_fields_data3d = []
@@ -384,7 +384,7 @@ def extract_optical_data(lens, surface_diameters=None):
                 try:
                     lens.draw()
                     draw_called = True
-                    print("✅ lens.draw() called to calculate apertures", flush=True)
+                    #print("✅ lens.draw() called to calculate apertures", flush=True)
                 except Exception as e:
                     print(f"⚠️ lens.draw() failed: {e}", flush=True)
 
@@ -401,7 +401,7 @@ def extract_optical_data(lens, surface_diameters=None):
             return 10.0
 
     diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
-    print('✅diameters calculated ', flush=True)
+    #print('✅diameters calculated ', flush=True)
 
     surfaces = [
         {
@@ -412,7 +412,9 @@ def extract_optical_data(lens, surface_diameters=None):
         }
         for s in lens.surface_group.surfaces
     ]
-
+    for s in lens.surface_group.surfaces:
+        print('radius: ',flush=True)
+        print(s.geometry.radius,flush=True)
     output = {}
 
     # === Spot Diagram ===
@@ -537,7 +539,7 @@ def simulate():
                 # Build lens from ZMX file
                 lens = build_lens_from_zmx(temp_path)
                 use_optimization = False
-                print('lens created using zmx file',flush=True)
+                #print('lens created using zmx file',flush=True)
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_path):
