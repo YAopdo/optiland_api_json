@@ -899,7 +899,22 @@ def optimize():
     print(lens.paraxial.f1(),flush=True)
     lens=optimize_opt(lens, optim_config)
     print(lens.paraxial.f1(),flush=True)
+    data = extract_optical_data(lens, surface_diameters)
+    try:
+        lens_json = save_lens_to_json(lens)
+        # Convert to JSON string to avoid Infinity serialization issues
+        # Frontend will save this string directly as a file
+        data["lens_file"] = json.dumps(lens_json, indent=2, allow_nan=True)
+        #print("✅ Lens JSON file included in response as string", flush=True)
+    except Exception as e:
+        print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
+        data["lens_file"] = None
+
+    # Sanitize NaN and Inf values before returning JSON (lens_file is already a string, so it won't be affected)
+    clean_data = sanitize_for_json(data)
     print('------------ end optimization ------',flush=True)
+    return jsonify(clean_data)
+    
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
