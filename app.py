@@ -893,12 +893,13 @@ def creat_lens(request):
 def optimize():
     use_optimization,lens,surface_diameters=creat_lens(request)
     payload = request.get_json(force=True)
-    print('Simulation has been called----------------', flush=True)
+    print('Optimization has been called----------------', flush=True)
     optim_config = payload["optim_config"]
     print('-------------optim is called')
     print(lens.paraxial.f1(),flush=True)
     lens=optimize_opt(lens, optim_config)
     print(lens.paraxial.f1(),flush=True)
+    print('------------ end optimization ------',flush=True)
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
