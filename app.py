@@ -508,6 +508,87 @@ def save_lens_to_json(lens):
         if os.path.exists(temp_path):
             os.remove(temp_path)
             #print(f"🧹 Cleaned up temp lens file: {temp_path}", flush=True)
+def creat_lens(request):
+    # Initialize surface_diameters as None (will be populated from JSON if available)
+    surface_diameters = None
+
+    # === Check if a ZMX file was uploaded ===
+    if 'zmx_file' in request.files:
+        #print("🔎 ZMX file upload detected", flush=True)
+        zmx_file = request.files['zmx_file']
+
+        # Validate file
+        if zmx_file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        # Save temporarily
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"zmx_upload_{zmx_file.filename}")
+        zmx_file.save(temp_path)
+        #print(f"📁 File saved to: {temp_path}", flush=True)
+
+        try:
+            # Build lens from ZMX file
+            lens = build_lens_from_zmx(temp_path)
+            use_optimization = False
+            #print('lens created using zmx file',flush=True)
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                # print(f"🧹 Cleaned up temp file: {temp_path}", flush=True)
+
+    # === Original JSON-based approach ===
+    else:
+        payload = request.get_json(force=True)
+        print('Simulation has been called----------------', flush=True)
+        surfaces = payload["surfaces"]
+
+        # Extract diameters from surfaces if available
+        surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
+        if len(surface_diameters) != len(surfaces):
+            # Not all surfaces have diameters, so don't use diameter-based blocking
+            surface_diameters = None
+
+        # Fix None radius values - None means infinite radius (planar surface)
+        for surface in surfaces:
+            if surface.get("radius") is None:
+                surface["radius"] = np.inf
+
+        
+        light_sources = payload.get("lightSources", [])
+        wavelengths = payload.get("wavelengths", [])
+        # print("wave_length",flush=True)
+        # print(wavelengths,flush=True)
+        notfake=True
+        for i in range(len(surfaces)):
+            if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
+                notfake=False
+        if notfake:
+            # print('__________________________________',flush=True)
+            # print("1- surfaces at_simulate", surfaces, flush=True)
+            # print("1- wavelength at_simulate",wavelengths,flush=True)
+            # print("1- light_sources at_simulate",light_sources,flush=True)
+            # print('__________________________________',flush=True)
+            lens = build_lens(surfaces, light_sources, wavelengths)
+            #print('last surface distace---------------------',flush=True)
+            #print(lens.surface_group.surfaces[-2].thickness,flush=True)
+            if lens.surface_group.surfaces[-2].thickness==0:
+                use_optimization = True
+            else:
+
+                for s in lens.surface_group.surfaces:
+                    s.is_stop = False
+                # Set candidate
+                lens.surface_group.surfaces[1].is_stop = True
+                use_optimization=False
+        else:
+            # Demo/test case with hardcoded ZMX
+            zmx_path='/etc/secrets/lens_.zmx'
+            lens = parse_zmx_and_create_optic(zmx_path)
+            use_optimization = False
+    return use_optimization,lens
 
 # -----------------------------------------
 # API Route
@@ -516,6 +597,13 @@ def save_lens_to_json(lens):
 @app.route("/simulate", methods=["POST"])
 def simulate():
     try:
+        print('----------------test------',flush=True)
+        use_optimization_temp,lens_temp=creat_lens(request)
+        print('lens.para:')
+        print(lens_temp.paraxial.f1(),flush=True)
+        print('use_optim:')
+        print(use_optimization_temp,flush=True)
+        print('--------------end of test---------',flush=True)
         # Initialize surface_diameters as None (will be populated from JSON if available)
         surface_diameters = None
 
