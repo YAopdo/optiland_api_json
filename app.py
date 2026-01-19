@@ -31,7 +31,8 @@ def modify_thickness(lens,found):
             print('thickness modified',flush=True)
             Found=True
             thickness=lens.surface_group.get_thickness(int(Neg[0][0]))
-            lens.set_thickness(thickness+.1,int(Neg[0][0]))
+            new_thickness=float(thickness[0]+.1)
+            lens.set_thickness(new_thickness,int(Neg[0][0]))
 
             return modify_thickness(lens,True)
     if not(Found):
@@ -809,13 +810,7 @@ def save_lens_to_json(lens):
 
     try:
         # Save lens to JSON file (returns None, just writes to file)
-        for surface in lens.surface_group.surfaces:
-            if hasattr(surface, 'x'):
-                surface.x = None
-            if hasattr(surface, 'y'):
-                surface.y = None
-            if hasattr(surface, 'z'):
-                surface.z = None
+
 
         save_optiland_file(lens, temp_path)
         #print(f"✅ Lens saved to: {temp_path}", flush=True)
