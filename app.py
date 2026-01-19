@@ -15,7 +15,27 @@ from optiland.fileio import load_zemax_file, save_optiland_file
 
 app = Flask(__name__)
 CORS(app)
+def modify_thickness(lens,found):
+    Found=False
+    for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
+        lens.trace(
+            Hx=Hx, Hy=Hy,
+            wavelength=lens.primary_wavelength,
+            num_rays=10,
+            distribution="line_y"
+        )
+        rays = np.array(lens.surface_group.z)
+        Mat=np.diff(rays,axis=0)
+        Neg=np.argwhere(Mat < 0)
+        if len(Neg)!=0:
+            print('thickness modified',flush=True)
+            Found=True
+            thickness=lens.surface_group.get_thickness(int(Neg[0][0]))
+            lens.set_thickness(thickness+.1,int(Neg[0][0]))
 
+            return modify_thickness(lens,True)
+    if not(Found):
+        return lens,found
 def optimize_opt(lens, config):
     """
     Optimize a lens system using a JSON-structured configuration.
@@ -86,231 +106,233 @@ def optimize_opt(lens, config):
     """
 
     # Extract configuration
-    operands = config.get('operands', [])
-    variables = config.get('variables', [])
-    optimizer_settings = config.get('optimizer_settings', {})
+    found=False
+    while not(found):
+        operands = config.get('operands', [])
+        variables = config.get('variables', [])
+        optimizer_settings = config.get('optimizer_settings', {})
 
-    # Get optimizer settings with defaults
-    method = optimizer_settings.get('method', 'L-BFGS-B')
-    max_iterations = optimizer_settings.get('max_iterations', 1000)
-    tolerance = optimizer_settings.get('tolerance', 0.00001)
-    display = optimizer_settings.get('display', True)
+        # Get optimizer settings with defaults
+        method = optimizer_settings.get('method', 'L-BFGS-B')
+        max_iterations = optimizer_settings.get('max_iterations', 1000)
+        tolerance = optimizer_settings.get('tolerance', 0.00001)
+        display = optimizer_settings.get('display', True)
 
-    # Create optimization problem
-    problem = optimization.OptimizationProblem()
+        # Create optimization problem
+        problem = optimization.OptimizationProblem()
 
-    # Add operands
-    for operand in operands:
-        operand_type = operand['type']
-        target = operand['target']
-        weight = operand['weight']
+        # Add operands
+        for operand in operands:
+            operand_type = operand['type']
+            target = operand['target']
+            weight = operand['weight']
 
-        if operand_type == 'OPD_difference':
-            # Apply to all wavelengths and field coordinates
-            for wave in lens.wavelengths.get_wavelengths():
-                for Hx, Hy in lens.fields.get_field_coords():
-                    input_data = {
-                        "optic": lens,
-                        "Hx": Hx,
-                        "Hy": Hy,
-                        "num_rays": 5,
-                        "wavelength": wave,
-                        "distribution": "gaussian_quad",
-                    }
-                    problem.add_operand(
-                        operand_type=operand_type,
-                        target=target,
-                        weight=weight,
-                        input_data=input_data,
-                    )
+            if operand_type == 'OPD_difference':
+                # Apply to all wavelengths and field coordinates
+                for wave in lens.wavelengths.get_wavelengths():
+                    for Hx, Hy in lens.fields.get_field_coords():
+                        input_data = {
+                            "optic": lens,
+                            "Hx": Hx,
+                            "Hy": Hy,
+                            "num_rays": 5,
+                            "wavelength": wave,
+                            "distribution": "gaussian_quad",
+                        }
+                        problem.add_operand(
+                            operand_type=operand_type,
+                            target=target,
+                            weight=weight,
+                            input_data=input_data,
+                        )
 
-        elif operand_type in ['f1', 'f2']:
-            # Focal length operands
-            problem.add_operand(
-                operand_type=operand_type,
-                target=target,
-                weight=weight,
-                input_data={"optic": lens},
-            )
+            elif operand_type in ['f1', 'f2']:
+                # Focal length operands
+                problem.add_operand(
+                    operand_type=operand_type,
+                    target=target,
+                    weight=weight,
+                    input_data={"optic": lens},
+                )
 
-        elif operand_type == 'real_y_intercept':
-            # Ray y-intercept at specific surface
-            # Support both lens_number+side format and direct surface_number
-            if 'surface_number' in operand:
-                surface_number = operand['surface_number']
-            else:
-                lens_num = operand['lens_number']
-                side = operand['side']
-                if side == 'image_plane':
-                    # Image plane is after all lenses: 2*lens_num + 1
-                    surface_number = lens_num * 2 + 1
-                elif side == 'front':
-                    surface_number = lens_num * 2 - 1
-                elif side == 'back':
-                    surface_number = lens_num * 2
+            elif operand_type == 'real_y_intercept':
+                # Ray y-intercept at specific surface
+                # Support both lens_number+side format and direct surface_number
+                if 'surface_number' in operand:
+                    surface_number = operand['surface_number']
                 else:
-                    raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
+                    lens_num = operand['lens_number']
+                    side = operand['side']
+                    if side == 'image_plane':
+                        # Image plane is after all lenses: 2*lens_num + 1
+                        surface_number = lens_num * 2 + 1
+                    elif side == 'front':
+                        surface_number = lens_num * 2 - 1
+                    elif side == 'back':
+                        surface_number = lens_num * 2
+                    else:
+                        raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
 
-            Wave = lens.wavelengths.get_wavelengths()
-            input_data = {
-                "optic": lens,
-                "surface_number": surface_number,
-                "Hx": 0,
-                "Hy": 0,
-                "Px": 0,
-                "Py": 1,
-                "wavelength": Wave[0],
-            }
-            problem.add_operand(
-                operand_type="real_y_intercept",
-                target=target,
-                weight=weight,
-                input_data=input_data,
-            )
-
-        elif operand_type == 'real_z_intercept':
-            # Ray z-intercept at specific surface
-            # Support both lens_number+side format and direct surface_number
-            if 'surface_number' in operand:
-                surface_number = operand['surface_number']
-            else:
-                lens_num = operand['lens_number']
-                side = operand['side']
-                if side == 'image_plane':
-                    # Image plane is after all lenses: 2*lens_num + 1
-                    surface_number = lens_num * 2 + 1
-                elif side == 'front':
-                    surface_number = lens_num * 2 - 1
-                elif side == 'back':
-                    surface_number = lens_num * 2
-                else:
-                    raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
-
-            Wave = lens.wavelengths.get_wavelengths()
-            input_data = {
-                "optic": lens,
-                "surface_number": surface_number,
-                "Hx": 0,
-                "Hy": 0,
-                "Px": 0,
-                "Py": 1,
-                "wavelength": Wave[0],
-            }
-            problem.add_operand(
-                operand_type="real_z_intercept",
-                target=target,
-                weight=weight,
-                input_data=input_data,
-            )
-
-        elif operand_type == 'rms_spot_size':
-                        # Apply to all wavelengths and field coordinates
-            for wave in lens.wavelengths.get_wavelengths():
-                for Hx, Hy in lens.fields.get_field_coords():
-            # RMS spot size at image plane
-            #Wave = lens.wavelengths.get_wavelengths()
-                    num_rays = operand.get('num_rays', 5)
-                    distribution = operand.get('distribution', 'hexapolar')
-                    input_data = {
-                        "optic": lens,
-                        "surface_number": -1,
-                        "Hx": Hx,
-                        "Hy": Hy,
-                        "num_rays": num_rays,
-                        "wavelength": wave,
-                        "distribution": distribution,
-                    }
-                    problem.add_operand(
-                        operand_type="rms_spot_size",
-                        target=target,
-                        weight=weight,
-                        input_data=input_data,
-                    )
-        elif operand_type == 'AOI':
-            if 'surface_number' in operand:
-                surface_number = operand['surface_number']
-            else:
-                lens_num = operand['lens_number']
-                side = operand['side']
-                if side == 'image_plane':
-                    # Image plane is after all lenses: 2*lens_num + 1
-                    surface_number = lens_num * 2 + 1
-                elif side == 'front':
-                    surface_number = lens_num * 2 - 1
-                elif side == 'back':
-                    surface_number = lens_num * 2
-                else:
-                    raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
-            Wave = lens.wavelengths.get_wavelengths()
-            num_rays = operand.get('num_rays', 5)
-            distribution = operand.get('distribution', 'hexapolar')
-            input_data = {
-                "optic": lens,
-                "surface_number": surface_number,
-                "Hx": 0,
-                "Hy": 0,
-                "Px": 0,
-                "Py": 1,
-                "wavelength": Wave[0],
-            }
-            problem.add_operand(
-                operand_type="AOI",
-                target=target,
-                weight=weight,
-                input_data=input_data,
-            )
-
-    # Add variables
-    for variable in variables:
-        var_type = variable['type']
-        min_value = variable.get('min_value')
-        max_value = variable.get('max_value')
-
-        # Convert lens_number + side to surface_number
-        # Surface mapping: Lens N front = 2*N-1, Lens N back = 2*N
-        # (Surface 0 is light source, last surface is image plane)
-        lens_number = variable['lens_number']
-        side = variable['side']
-
-        if side == 'front':
-            surface_number = lens_number * 2 - 1
-        elif side == 'back':
-            surface_number = lens_number * 2
-        else:
-            raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
-
-        if var_type == 'asphere_coeff':
-            # Add all 3 aspheric coefficients
-            for coeff_num in range(3):
-                kwargs = {
-                    'surface_number': surface_number,
-                    'coeff_number': coeff_num
+                Wave = lens.wavelengths.get_wavelengths()
+                input_data = {
+                    "optic": lens,
+                    "surface_number": surface_number,
+                    "Hx": 0,
+                    "Hy": 0,
+                    "Px": 0,
+                    "Py": 1,
+                    "wavelength": Wave[0],
                 }
+                problem.add_operand(
+                    operand_type="real_y_intercept",
+                    target=target,
+                    weight=weight,
+                    input_data=input_data,
+                )
+
+            elif operand_type == 'real_z_intercept':
+                # Ray z-intercept at specific surface
+                # Support both lens_number+side format and direct surface_number
+                if 'surface_number' in operand:
+                    surface_number = operand['surface_number']
+                else:
+                    lens_num = operand['lens_number']
+                    side = operand['side']
+                    if side == 'image_plane':
+                        # Image plane is after all lenses: 2*lens_num + 1
+                        surface_number = lens_num * 2 + 1
+                    elif side == 'front':
+                        surface_number = lens_num * 2 - 1
+                    elif side == 'back':
+                        surface_number = lens_num * 2
+                    else:
+                        raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
+
+                Wave = lens.wavelengths.get_wavelengths()
+                input_data = {
+                    "optic": lens,
+                    "surface_number": surface_number,
+                    "Hx": 0,
+                    "Hy": 0,
+                    "Px": 0,
+                    "Py": 1,
+                    "wavelength": Wave[0],
+                }
+                problem.add_operand(
+                    operand_type="real_z_intercept",
+                    target=target,
+                    weight=weight,
+                    input_data=input_data,
+                )
+
+            elif operand_type == 'rms_spot_size':
+                            # Apply to all wavelengths and field coordinates
+                for wave in lens.wavelengths.get_wavelengths():
+                    for Hx, Hy in lens.fields.get_field_coords():
+                # RMS spot size at image plane
+                #Wave = lens.wavelengths.get_wavelengths()
+                        num_rays = operand.get('num_rays', 5)
+                        distribution = operand.get('distribution', 'hexapolar')
+                        input_data = {
+                            "optic": lens,
+                            "surface_number": -1,
+                            "Hx": Hx,
+                            "Hy": Hy,
+                            "num_rays": num_rays,
+                            "wavelength": wave,
+                            "distribution": distribution,
+                        }
+                        problem.add_operand(
+                            operand_type="rms_spot_size",
+                            target=target,
+                            weight=weight,
+                            input_data=input_data,
+                        )
+            elif operand_type == 'AOI':
+                if 'surface_number' in operand:
+                    surface_number = operand['surface_number']
+                else:
+                    lens_num = operand['lens_number']
+                    side = operand['side']
+                    if side == 'image_plane':
+                        # Image plane is after all lenses: 2*lens_num + 1
+                        surface_number = lens_num * 2 + 1
+                    elif side == 'front':
+                        surface_number = lens_num * 2 - 1
+                    elif side == 'back':
+                        surface_number = lens_num * 2
+                    else:
+                        raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
+                Wave = lens.wavelengths.get_wavelengths()
+                num_rays = operand.get('num_rays', 5)
+                distribution = operand.get('distribution', 'hexapolar')
+                input_data = {
+                    "optic": lens,
+                    "surface_number": surface_number,
+                    "Hx": 0,
+                    "Hy": 0,
+                    "Px": 0,
+                    "Py": 1,
+                    "wavelength": Wave[0],
+                }
+                problem.add_operand(
+                    operand_type="AOI",
+                    target=target,
+                    weight=weight,
+                    input_data=input_data,
+                )
+
+        # Add variables
+        for variable in variables:
+            var_type = variable['type']
+            min_value = variable.get('min_value')
+            max_value = variable.get('max_value')
+
+            # Convert lens_number + side to surface_number
+            # Surface mapping: Lens N front = 2*N-1, Lens N back = 2*N
+            # (Surface 0 is light source, last surface is image plane)
+            lens_number = variable['lens_number']
+            side = variable['side']
+
+            if side == 'front':
+                surface_number = lens_number * 2 - 1
+            elif side == 'back':
+                surface_number = lens_number * 2
+            else:
+                raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
+
+            if var_type == 'asphere_coeff':
+                # Add all 3 aspheric coefficients
+                for coeff_num in range(3):
+                    kwargs = {
+                        'surface_number': surface_number,
+                        'coeff_number': coeff_num
+                    }
+                    if min_value is not None:
+                        kwargs['min_val'] = min_value
+                    if max_value is not None:
+                        kwargs['max_val'] = max_value
+                    problem.add_variable(lens, "asphere_coeff", **kwargs)
+            else:
+                # Add single variable
+                kwargs = {'surface_number': surface_number}
                 if min_value is not None:
                     kwargs['min_val'] = min_value
                 if max_value is not None:
                     kwargs['max_val'] = max_value
-                problem.add_variable(lens, "asphere_coeff", **kwargs)
-        else:
-            # Add single variable
-            kwargs = {'surface_number': surface_number}
-            if min_value is not None:
-                kwargs['min_val'] = min_value
-            if max_value is not None:
-                kwargs['max_val'] = max_value
-            problem.add_variable(lens, var_type, **kwargs)
+                problem.add_variable(lens, var_type, **kwargs)
 
-    # Run optimization
-    optimizer = optimization.OptimizerGeneric(problem)
-    print("\n=== Optimization Problem Setup ===")
-    problem.info()
+        # Run optimization
+        optimizer = optimization.OptimizerGeneric(problem)
+        print("\n=== Optimization Problem Setup ===")
+        problem.info()
 
-    print(f"\n=== Running Optimization (method={method}) ===")
-    res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
+        print(f"\n=== Running Optimization (method={method}) ===")
+        res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
 
-    print("\n=== Optimization Results ===")
-    problem.info()
-
+        print("\n=== Optimization Results ===")
+        problem.info()
+        lens,found=modify_thickness(lens,False)
     return lens
 def sanitize_for_json(obj):
     """
