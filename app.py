@@ -816,7 +816,7 @@ def save_lens_to_json(lens):
         with open(temp_path, 'r') as f:
             file_content = f.read()
 
-        #print(f"🔍 Raw file first 500 chars: {file_content[:500]}", flush=True)
+        print(f"🔍 Raw file first 500 chars: {file_content[:500]}", flush=True)
         lens_json = json.loads(file_content)
 
         #print(f"✅ Lens JSON loaded successfully, type: {type(lens_json)}", flush=True)
