@@ -118,7 +118,7 @@ def optimize_opt(lens, config):
         max_iterations = optimizer_settings.get('max_iterations', 1000)
         tolerance = optimizer_settings.get('tolerance', 0.00001)
         display = optimizer_settings.get('display', True)
-
+        Modify_thickness=optimizer_settings.get('modify_thickness', True)
         # Create optimization problem
         problem = optimization.OptimizationProblem()
 
@@ -333,7 +333,10 @@ def optimize_opt(lens, config):
 
         print("\n=== Optimization Results ===")
         problem.info()
-        lens,Check_thickness=modify_thickness(lens,False)
+        if Modify_thickness:
+            lens,Check_thickness=modify_thickness(lens,False)
+        else:
+            Check_thickness=False
     return lens
 def sanitize_for_json(obj):
     """
