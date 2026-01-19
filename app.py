@@ -301,7 +301,11 @@ def optimize_opt(lens, config):
                 surface_number = lens_number * 2
             else:
                 raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
+            try:
+                lens_json = save_lens_to_json(lens)
 
+            except Exception as e:
+                print(f"⚠️ Failed to save lens JSON308: {e}", flush=True)
             if var_type == 'asphere_coeff':
                 # Add all 3 aspheric coefficients
                 for coeff_num in range(3):
@@ -322,7 +326,11 @@ def optimize_opt(lens, config):
                 if max_value is not None:
                     kwargs['max_val'] = max_value
                 problem.add_variable(lens, var_type, **kwargs)
+        try:
+            lens_json = save_lens_to_json(lens)
 
+        except Exception as e:
+            print(f"⚠️ Failed to save lens JSON333: {e}", flush=True)
         # Run optimization
         optimizer = optimization.OptimizerGeneric(problem)
         print("\n=== Optimization Problem Setup ===")
@@ -330,7 +338,11 @@ def optimize_opt(lens, config):
 
         print(f"\n=== Running Optimization (method={method}) ===")
         res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
+        try:
+            lens_json = save_lens_to_json(lens)
 
+        except Exception as e:
+            print(f"⚠️ Failed to save lens JSON345: {e}", flush=True)
         print("\n=== Optimization Results ===")
         problem.info()
         if Modify_thickness:
@@ -920,6 +932,11 @@ def creat_lens(request):
 @app.route("/optimize", methods=["POST"])
 def optimize():
     use_optimization,lens,surface_diameters=creat_lens(request)
+    try:
+        lens_json = save_lens_to_json(lens)
+
+    except Exception as e:
+        print(f"⚠️ Failed to save lens JSON927: {e}", flush=True)
     payload = request.get_json(force=True)
     print('Optimization has been called----------------', flush=True)
     optim_config = payload["optim_config"]
