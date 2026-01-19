@@ -15,6 +15,39 @@ from optiland.fileio import load_zemax_file, save_optiland_file
 
 app = Flask(__name__)
 CORS(app)
+
+import numpy as np
+
+def normalize_asphere_coefficients(optic):
+    for surf in optic.surface_group.surfaces:
+        geom = getattr(surf, "geometry", None)
+        if geom is None or not hasattr(geom, "coefficients"):
+            continue
+
+        coeffs = geom.coefficients
+
+        # None -> empty list
+        if coeffs is None:
+            geom.coefficients = []
+            continue
+
+        # If it's already a Python list/tuple, keep as list (ensure floats)
+        if isinstance(coeffs, (list, tuple)):
+            geom.coefficients = [float(x) for x in coeffs]
+            continue
+
+        # If it's a numpy array (or numpy-like), convert to list of floats
+        if isinstance(coeffs, np.ndarray):
+            if coeffs.size == 0:
+                geom.coefficients = []
+            else:
+                geom.coefficients = [float(x) for x in coeffs.reshape(-1)]
+            continue
+
+        # Fallback: try to coerce anything else to numpy
+        arr = np.asarray(coeffs).reshape(-1)
+        geom.coefficients = [] if arr.size == 0 else [float(x) for x in arr]
+
 def modify_thickness(lens,found):
     Found=False
     for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
@@ -943,6 +976,8 @@ def optimize():
     print('-------------optim is called')
     print(lens.paraxial.f1(),flush=True)
     lens=optimize_opt(lens, optim_config)
+    normalize_asphere_coefficients(lens)
+
     print(lens.paraxial.f1(),flush=True)
     data = extract_optical_data(lens, surface_diameters)
     try:
