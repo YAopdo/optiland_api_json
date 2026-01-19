@@ -307,13 +307,13 @@ def optimize_opt(lens, config):
                 for coeff_num in range(3):
                     kwargs = {
                         'surface_number': surface_number,
-                        'coeff_number': coeff_num
+                        'coeff_number': int(coeff_num)
                     }
                     if min_value is not None:
                         kwargs['min_val'] = min_value
                     if max_value is not None:
                         kwargs['max_val'] = max_value
-                    problem.add_variable(lens, "asphere_coeff", **kwargs)
+                    problem.add_variable(lens, var_type, **kwargs)
             else:
                 # Add single variable
                 kwargs = {'surface_number': surface_number}
