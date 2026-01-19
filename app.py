@@ -809,6 +809,14 @@ def save_lens_to_json(lens):
 
     try:
         # Save lens to JSON file (returns None, just writes to file)
+        for surface in lens.surface_group.surfaces:
+            if hasattr(surface, 'x'):
+                surface.x = None
+            if hasattr(surface, 'y'):
+                surface.y = None
+            if hasattr(surface, 'z'):
+                surface.z = None
+
         save_optiland_file(lens, temp_path)
         #print(f"✅ Lens saved to: {temp_path}", flush=True)
 
