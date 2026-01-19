@@ -106,8 +106,8 @@ def optimize_opt(lens, config):
     """
 
     # Extract configuration
-    found=False
-    while not(found):
+    Check_thickness=True
+    while Check_thickness:
         operands = config.get('operands', [])
         variables = config.get('variables', [])
         optimizer_settings = config.get('optimizer_settings', {})
@@ -332,7 +332,7 @@ def optimize_opt(lens, config):
 
         print("\n=== Optimization Results ===")
         problem.info()
-        lens,found=modify_thickness(lens,False)
+        lens,Check_thickness=modify_thickness(lens,False)
     return lens
 def sanitize_for_json(obj):
     """
