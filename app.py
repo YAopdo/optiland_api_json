@@ -552,7 +552,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
         lens.add_surface(**kwargs)
 
     lens.add_surface(index=len(surfaces_json) + 1, is_stop=True)
-    lens.set_aperture(aperture_type="EPD", value=surface_diameter[0]*.9)
+    lens.set_aperture(aperture_type="EPD", value=surface_diameter[0])
     # === Handle light sources ===
     if light_sources:
         first_type = light_sources[0].get("type")
