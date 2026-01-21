@@ -367,7 +367,7 @@ def optimize_opt(lens, config):
         # Run optimization
         optimizer = optimization.OptimizerGeneric(problem)
         print("\n=== Optimization Problem Setup ===")
-        problem.info()
+        #problem.info()
 
         print(f"\n=== Running Optimization (method={method}) ===")
         res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
@@ -377,7 +377,7 @@ def optimize_opt(lens, config):
         except Exception as e:
             print(f"⚠️ Failed to save lens JSON345: {e}", flush=True)
         print("\n=== Optimization Results ===")
-        problem.info()
+        #problem.info()
         if Modify_thickness:
             lens,Check_thickness=modify_thickness(lens,False)
         else:
@@ -768,8 +768,8 @@ def extract_optical_data(lens, surface_diameters=None):
             return 10.0
 
     diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
-    #print('✅diameters calculated ', flush=True)
-
+    print('✅diameters calculated ', flush=True)
+    print(diameters,flush=True)
     surfaces = [
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
@@ -867,7 +867,7 @@ def save_lens_to_json(lens):
         with open(temp_path, 'r') as f:
             file_content = f.read()
 
-        print(f"🔍 Raw file first 500 chars: {file_content[:500]}", flush=True)
+        #print(f"🔍 Raw file first 500 chars: {file_content[:500]}", flush=True)
         lens_json = json.loads(file_content)
 
         #print(f"✅ Lens JSON loaded successfully, type: {type(lens_json)}", flush=True)
@@ -916,6 +916,8 @@ def creat_lens(request):
 
         # Extract diameters from surfaces if available
         surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
+        print('surfaces:------------',flush=True)
+        print(surface_diameters,flush=True)
         if len(surface_diameters) != len(surfaces):
             # Not all surfaces have diameters, so don't use diameter-based blocking
             surface_diameters = None
@@ -957,6 +959,7 @@ def creat_lens(request):
             zmx_path='/etc/secrets/lens_.zmx'
             lens = parse_zmx_and_create_optic(zmx_path)
             use_optimization = False
+        print(surface_diameters,flush=True)
     return use_optimization,lens,surface_diameters
 
 # -----------------------------------------
