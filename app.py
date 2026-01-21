@@ -514,80 +514,95 @@ def parse_zmx_and_create_optic(zmx_path: str):
 # -----------------------------------------
 
 def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diameter=None):
-    lens = optic.Optic()
-    # print("🔎 build_lens called with surfaces_json:", json.dumps(surfaces_json, indent=2), flush=True)
-    # print('wavelengths',flush=True)
-    # print(wavelengths,flush=True)
-    
-    # --- Determine object plane thickness ---
-    if light_sources and light_sources[0].get("type") == "point":
-        x_object = light_sources[0].get("x", 0)
-        lens.add_surface(index=0, thickness=float(x_object))
-    else:
-        lens.add_surface(index=0, thickness=np.inf)
-    for i, s in enumerate(surfaces_json, start=1):
-        # Construct material using refractive index, fallback to air
-        if "index" in s:
-            material = AbbeMaterial(n=s["index"], abbe=60)
-           # print("at surface index :" + str(i)+ " reffrective index : " + str(s["index"]), flush=True)
-        else:
-            material = "Air"
-        # print (i, flush=True)
-        # print (s["radius"], flush=True)
-        # print(s["thickness"], flush=True)
-        # print(s.get("surface_type"), flush=True)
-        # print(s.get("conic"), flush=True)
-        # print(s.get("coefficients"), flush=True)
+    need_aparture_fix=True
+    Apr=surface_diameter[0]
+    while need_aparture_fix:
+        lens = optic.Optic()
+        # print("🔎 build_lens called with surfaces_json:", json.dumps(surfaces_json, indent=2), flush=True)
+        # print('wavelengths',flush=True)
+        # print(wavelengths,flush=True)
         
-        kwargs = {
-            "index":        i,
-            "radius":       s["radius"],
-            "thickness":    s["thickness"],
-            "material":     material,
-            "surface_type": s.get("surface_type"),
-            "conic":        s.get("conic"),
-            "coefficients": s.get("coefficients"),
-        }
-        kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        lens.add_surface(**kwargs)
-
-    lens.add_surface(index=len(surfaces_json) + 1, is_stop=True)
-    lens.set_aperture(aperture_type="EPD", value=surface_diameter[0])
-    # === Handle light sources ===
-    if light_sources:
-        first_type = light_sources[0].get("type")
-        if first_type == "infinity":
-            lens.set_field_type("angle")
-            for src in light_sources:
-                angle = src.get("angle", 0)
-                y = angle
-                lens.add_field(y=y)
-        elif first_type == "point":
-            lens.set_field_type("object_height")
-            for src in light_sources:
-                x = src.get("x", 0)
-                lens.set_thickness(x,0)
-                y = src.get("y", 0)
-                lens.add_field(y=y)
-    else:
-        lens.set_field_type("angle")
-        lens.add_field(y=0)
-        lens.add_field(y=5)
-
-    # === Handle multiple wavelengths ===
-    if wavelengths:
-        ISPRIME=True
-        for w in wavelengths:
-            #print("wavelength: " , flush=True)
-            #print(w,flush=True)
-            if ISPRIME:
-                lens.add_wavelength(value=w,is_primary=True)
-                ISPRIME=False
+        # --- Determine object plane thickness ---
+        if light_sources and light_sources[0].get("type") == "point":
+            x_object = light_sources[0].get("x", 0)
+            lens.add_surface(index=0, thickness=float(x_object))
+        else:
+            lens.add_surface(index=0, thickness=np.inf)
+        for i, s in enumerate(surfaces_json, start=1):
+            # Construct material using refractive index, fallback to air
+            if "index" in s:
+                material = AbbeMaterial(n=s["index"], abbe=60)
+            # print("at surface index :" + str(i)+ " reffrective index : " + str(s["index"]), flush=True)
             else:
-                lens.add_wavelength(value=w)
-    else:
-        lens.add_wavelength(value=0.55,is_primary=True)
+                material = "Air"
+            # print (i, flush=True)
+            # print (s["radius"], flush=True)
+            # print(s["thickness"], flush=True)
+            # print(s.get("surface_type"), flush=True)
+            # print(s.get("conic"), flush=True)
+            # print(s.get("coefficients"), flush=True)
+            
+            kwargs = {
+                "index":        i,
+                "radius":       s["radius"],
+                "thickness":    s["thickness"],
+                "material":     material,
+                "surface_type": s.get("surface_type"),
+                "conic":        s.get("conic"),
+                "coefficients": s.get("coefficients"),
+            }
+            kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            lens.add_surface(**kwargs)
 
+        lens.add_surface(index=len(surfaces_json) + 1, is_stop=True)
+        lens.set_aperture(aperture_type="EPD", value=Apr)
+        # === Handle light sources ===
+        if light_sources:
+            first_type = light_sources[0].get("type")
+            if first_type == "infinity":
+                lens.set_field_type("angle")
+                for src in light_sources:
+                    angle = src.get("angle", 0)
+                    y = angle
+                    lens.add_field(y=y)
+            elif first_type == "point":
+                lens.set_field_type("object_height")
+                for src in light_sources:
+                    x = src.get("x", 0)
+                    lens.set_thickness(x,0)
+                    y = src.get("y", 0)
+                    lens.add_field(y=y)
+        else:
+            lens.set_field_type("angle")
+            lens.add_field(y=0)
+            lens.add_field(y=5)
+
+        # === Handle multiple wavelengths ===
+        if wavelengths:
+            ISPRIME=True
+            for w in wavelengths:
+                #print("wavelength: " , flush=True)
+                #print(w,flush=True)
+                if ISPRIME:
+                    lens.add_wavelength(value=w,is_primary=True)
+                    ISPRIME=False
+                else:
+                    lens.add_wavelength(value=w)
+        else:
+            lens.add_wavelength(value=0.55,is_primary=True)
+        draw_called_list = [False]  # Track if draw() has been called
+        diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
+        print('surface from front end:',flush=True)
+        print(surface_diameter,flush=True)
+        print('surface from back end:',flush=True)
+        print(diameters,flush=True)
+        
+        if abs(surface_diameter[0]-diameters[1])<.05:
+            need_aparture_fix=False
+        elif surface_diameter[0]-diameters[1]<0:
+            Apr=Apr-.01
+        else:
+            Apr=Apr+.01
     return lens
 
 def build_lens_from_zmx(zmx_path):
@@ -626,6 +641,51 @@ def best_intersection_point(x0, y0, x1, y1):
     # Least squares solution to A @ [x, y] = b
     best_point, *_ = np.linalg.lstsq(A, b, rcond=None)
     return best_point  # [x, y]
+
+def get_diameter(surface, lens=None, draw_called_list=None):
+    """
+    Get the diameter of a surface safely.
+
+    Parameters
+    ----------
+    surface : Surface
+        The surface object to get the diameter from
+    lens : Optic, optional
+        The lens/optic object, used for calling draw() if needed
+    draw_called_list : list, optional
+        A single-element list [bool] to track if draw() has been called
+
+    Returns
+    -------
+    float
+        The diameter of the surface
+    """
+    try:
+        if surface.semi_aperture is not None and np.isfinite(surface.semi_aperture):
+            return float(2 * surface.semi_aperture)
+        else:
+            raise ValueError("semi_aperture not available")
+    except:
+        # Call lens.draw() once if not already called
+        if lens is not None and draw_called_list is not None and not draw_called_list[0]:
+            try:
+                lens.draw()
+                draw_called_list[0] = True
+                #print("✅ lens.draw() called to calculate apertures", flush=True)
+            except Exception as e:
+                print(f"⚠️ lens.draw() failed: {e}", flush=True)
+
+        # Try to use np.max(s.y) for diameter
+        try:
+            if hasattr(surface, 'y') and surface.y is not None:
+                max_y = np.max(np.abs(surface.y))
+                if np.isfinite(max_y):
+                    return float(2 * max_y)
+        except Exception as e:
+            print(f"⚠️ Failed to get diameter from surface.y: {e}", flush=True)
+
+        # Last resort: use default
+        return 10.0
 
 def extract_optical_data(lens, surface_diameters=None):
     #print("✅lens info at extract_optical_data")
@@ -736,38 +796,9 @@ def extract_optical_data(lens, surface_diameters=None):
             
         })
     # === Surface Geometry ===
-    # Helper function to safely get diameter
-    draw_called = False
-    def get_diameter(surface):
-        nonlocal draw_called
-        try:
-            if surface.semi_aperture is not None and np.isfinite(surface.semi_aperture):
-                return float(2 * surface.semi_aperture)
-            else:
-                raise ValueError("semi_aperture not available")
-        except:
-            # Call lens.draw() once if not already called
-            if not draw_called:
-                try:
-                    lens.draw()
-                    draw_called = True
-                    #print("✅ lens.draw() called to calculate apertures", flush=True)
-                except Exception as e:
-                    print(f"⚠️ lens.draw() failed: {e}", flush=True)
-
-            # Try to use np.max(s.y) for diameter
-            try:
-                if hasattr(surface, 'y') and surface.y is not None:
-                    max_y = np.max(np.abs(surface.y))
-                    if np.isfinite(max_y):
-                        return float(2 * max_y)
-            except Exception as e:
-                print(f"⚠️ Failed to get diameter from surface.y: {e}", flush=True)
-
-            # Last resort: use default
-            return 10.0
-
-    diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
+    # Use the module-level get_diameter function
+    draw_called_list = [False]  # Track if draw() has been called
+    diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
     diameters[0]=surface_diameters[0]
     print('✅diameters calculated ', flush=True)
     print(diameters,flush=True)
@@ -775,7 +806,7 @@ def extract_optical_data(lens, surface_diameters=None):
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
             "thickness": float(s.thickness) if np.isfinite(s.thickness) else 1e6,
-            "diameter": get_diameter(s),
+            "diameter": get_diameter(s, lens, draw_called_list),
             "Is_Lens": float(type(s.material_post.n(lens.primary_wavelength))==np.ndarray)
         }
         for s in lens.surface_group.surfaces
