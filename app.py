@@ -513,7 +513,7 @@ def parse_zmx_and_create_optic(zmx_path: str):
 # Lens Builder
 # -----------------------------------------
 
-def build_lens(surfaces_json, light_sources=None, wavelengths=None):
+def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diameter=None):
     lens = optic.Optic()
     # print("🔎 build_lens called with surfaces_json:", json.dumps(surfaces_json, indent=2), flush=True)
     # print('wavelengths',flush=True)
@@ -552,7 +552,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None):
         lens.add_surface(**kwargs)
 
     lens.add_surface(index=len(surfaces_json) + 1, is_stop=True)
-    lens.set_aperture(aperture_type="EPD", value=10)
+    lens.set_aperture(aperture_type="EPD", value=surface_diameter[0]/2)
     # === Handle light sources ===
     if light_sources:
         first_type = light_sources[0].get("type")
@@ -940,7 +940,7 @@ def creat_lens(request):
             # print("1- wavelength at_simulate",wavelengths,flush=True)
             # print("1- light_sources at_simulate",light_sources,flush=True)
             # print('__________________________________',flush=True)
-            lens = build_lens(surfaces, light_sources, wavelengths)
+            lens = build_lens(surfaces, light_sources, wavelengths,surface_diameters)
             #print('last surface distace---------------------',flush=True)
             #print(lens.surface_group.surfaces[-2].thickness,flush=True)
             if lens.surface_group.surfaces[-2].thickness==0:
