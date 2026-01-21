@@ -768,6 +768,7 @@ def extract_optical_data(lens, surface_diameters=None):
             return 10.0
 
     diameters = [get_diameter(s) for s in lens.surface_group.surfaces]
+    diameters[0]=surface_diameters[0]
     print('✅diameters calculated ', flush=True)
     print(diameters,flush=True)
     surfaces = [
