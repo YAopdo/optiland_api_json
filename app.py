@@ -516,7 +516,9 @@ def parse_zmx_and_create_optic(zmx_path: str):
 def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diameter=None):
     need_aparture_fix=True
     Apr=surface_diameter[0]
-    while need_aparture_fix:
+    count=0
+    while (need_aparture_fix) & (count<5):
+        count+=1
         lens = optic.Optic()
         # print("🔎 build_lens called with surfaces_json:", json.dumps(surfaces_json, indent=2), flush=True)
         # print('wavelengths',flush=True)
