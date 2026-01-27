@@ -512,7 +512,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
     need_aparture_fix=True
     Apr=surface_diameter[0]
     count=0
-    while (need_aparture_fix) & (count<5):
+    while (need_aparture_fix) & (count<10):
         count+=1
         lens = optic.Optic()
         
@@ -585,10 +585,10 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
         
         if abs(surface_diameter[0]-diameters[1])<.05:
             need_aparture_fix=False
-        elif surface_diameter[0]-diameters[1]<0:
-            Apr=Apr-.01
-        else:
-            Apr=Apr+.01
+        else: 
+            Apr=Apr+(surface_diameter[0]-diameters[1])/2
+        #else:
+       #     Apr=Apr+.01
     return lens
 
 def build_lens_from_zmx(zmx_path):
