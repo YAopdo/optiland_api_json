@@ -425,15 +425,10 @@ def find_image_plane(lens):
     problem.add_variable(lens, "thickness", surface_number=-2, min_val=5, max_val=100000)
     optimizer = optimization.OptimizerGeneric(problem)
     optimizer.optimize()
-    #print(optimizer.problem.variables.variables[0].value)
     thicknesses = be.diff(
     be.ravel(lens.surface_group.positions), append=be.array([be.nan])
 )
-    #print("thickness",flush=True)
-    #print(thicknesses,flush=True)
-    # if (be.to_numpy(thicknesses)[-2]<0) | (be.to_numpy(thicknesses)[-2]>200):
-    #     lens.set_thickness(50, len(lens.surface_group.surfaces) - 2)
-        
+
     return lens
 
 def parse_zmx_and_create_optic(zmx_path: str):
@@ -520,9 +515,6 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
     while (need_aparture_fix) & (count<5):
         count+=1
         lens = optic.Optic()
-        # print("🔎 build_lens called with surfaces_json:", json.dumps(surfaces_json, indent=2), flush=True)
-        # print('wavelengths',flush=True)
-        # print(wavelengths,flush=True)
         
         # --- Determine object plane thickness ---
         if light_sources and light_sources[0].get("type") == "point":
@@ -534,15 +526,9 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
             # Construct material using refractive index, fallback to air
             if "index" in s:
                 material = AbbeMaterial(n=s["index"], abbe=60)
-            # print("at surface index :" + str(i)+ " reffrective index : " + str(s["index"]), flush=True)
             else:
                 material = "Air"
-            # print (i, flush=True)
-            # print (s["radius"], flush=True)
-            # print(s["thickness"], flush=True)
-            # print(s.get("surface_type"), flush=True)
-            # print(s.get("conic"), flush=True)
-            # print(s.get("coefficients"), flush=True)
+
             
             kwargs = {
                 "index":        i,
@@ -583,8 +569,6 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
         if wavelengths:
             ISPRIME=True
             for w in wavelengths:
-                #print("wavelength: " , flush=True)
-                #print(w,flush=True)
                 if ISPRIME:
                     lens.add_wavelength(value=w,is_primary=True)
                     ISPRIME=False
@@ -612,9 +596,7 @@ def build_lens_from_zmx(zmx_path):
     Load lens from ZMX file using optiland's load_zemax_file function.
     The ZMX file already contains wavelengths, fields, and aperture settings.
     """
-    #print(f"🔎 Loading ZMX file from: {zmx_path}", flush=True)
     lens = load_zemax_file(zmx_path)
-    #print("✅ ZMX file loaded successfully", flush=True)
     #lens.info()
     return lens
 
@@ -673,7 +655,6 @@ def get_diameter(surface, lens=None, draw_called_list=None):
             try:
                 lens.draw()
                 draw_called_list[0] = True
-                #print("✅ lens.draw() called to calculate apertures", flush=True)
             except Exception as e:
                 print(f"⚠️ lens.draw() failed: {e}", flush=True)
 
@@ -690,27 +671,18 @@ def get_diameter(surface, lens=None, draw_called_list=None):
         return 10.0
 
 def extract_optical_data(lens, surface_diameters=None):
-    #print("✅lens info at extract_optical_data")
-    #lens.info()
     spot = analysis.SpotDiagram(lens, num_rings=30)
-    #print('spot calculated',flush=True)
     fan = analysis.RayFan(lens)
-    #print('✅fan calculated ', flush=True)
 
     # Try to calculate distortion, but it may fail for some lens configurations
     distortion = None
     try:
         distortion = analysis.Distortion(lens)
-        #print("✅ Distortion analysis successful", flush=True)
     except Exception as e:
         print(f"⚠️ Distortion analysis failed: {e}", flush=True)
         print("Continuing without distortion data...", flush=True)
     # === Paraxial ===
     paraxial=[]
-    print("Front_focal_length:",flush=True)
-    print(lens.paraxial.f1(),flush=True)
-    print("Back_focal_length:",flush=True)
-    print(lens.paraxial.f2(),flush=True)
     
     paraxial.append({
         "magnification": lens.paraxial.magnification(),
@@ -726,7 +698,6 @@ def extract_optical_data(lens, surface_diameters=None):
         "Front_nodal_plane": lens.paraxial.N1(),
         "Back_nodal_plane": lens.paraxial.N2(),
     })
-    #print('✅paraxial calculated ', flush=True)
 
     # === Ray Trace Paths ===
     all_fields_data = []
@@ -771,7 +742,6 @@ def extract_optical_data(lens, surface_diameters=None):
             "x": x_data.tolist(),
             "y": y_data.tolist(),
         })
-    #print('✅trace calculated ', flush=True)
     #===3d ray
     # === Ray Trace Paths ===
     all_fields_data3d = []
@@ -813,9 +783,7 @@ def extract_optical_data(lens, surface_diameters=None):
         }
         for s in lens.surface_group.surfaces
     ]
-    for s in lens.surface_group.surfaces:
-        print('radius: ',flush=True)
-        print(s.geometry.radius,flush=True)
+
     output = {}
 
     # === Spot Diagram ===
@@ -895,29 +863,24 @@ def save_lens_to_json(lens):
 
 
         save_optiland_file(lens, temp_path)
-        #print(f"✅ Lens saved to: {temp_path}", flush=True)
 
         # Read the JSON file that was created
         with open(temp_path, 'r') as f:
             file_content = f.read()
 
-        #print(f"🔍 Raw file first 500 chars: {file_content[:500]}", flush=True)
         lens_json = json.loads(file_content)
 
-        #print(f"✅ Lens JSON loaded successfully, type: {type(lens_json)}", flush=True)
         return lens_json
     finally:
         # Clean up temp file
         if os.path.exists(temp_path):
             os.remove(temp_path)
-            #print(f"🧹 Cleaned up temp lens file: {temp_path}", flush=True)
 def creat_lens(request):
     # Initialize surface_diameters as None (will be populated from JSON if available)
     surface_diameters = None
 
     # === Check if a ZMX file was uploaded ===
     if 'zmx_file' in request.files:
-        #print("🔎 ZMX file upload detected", flush=True)
         zmx_file = request.files['zmx_file']
 
         # Validate file
@@ -929,18 +892,15 @@ def creat_lens(request):
         temp_dir = tempfile.gettempdir()
         temp_path = os.path.join(temp_dir, f"zmx_upload_{zmx_file.filename}")
         zmx_file.save(temp_path)
-        #print(f"📁 File saved to: {temp_path}", flush=True)
 
         try:
             # Build lens from ZMX file
             lens = build_lens_from_zmx(temp_path)
             use_optimization = False
-            #print('lens created using zmx file',flush=True)
         finally:
             # Clean up temp file
             if os.path.exists(temp_path):
                 os.remove(temp_path)
-                # print(f"🧹 Cleaned up temp file: {temp_path}", flush=True)
 
     # === Original JSON-based approach ===
     else:
@@ -964,21 +924,15 @@ def creat_lens(request):
         
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
-        # print("wave_length",flush=True)
-        # print(wavelengths,flush=True)
+
         notfake=True
         for i in range(len(surfaces)):
             if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
                 notfake=False
         if notfake:
-            # print('__________________________________',flush=True)
-            # print("1- surfaces at_simulate", surfaces, flush=True)
-            # print("1- wavelength at_simulate",wavelengths,flush=True)
-            # print("1- light_sources at_simulate",light_sources,flush=True)
-            # print('__________________________________',flush=True)
+
             lens = build_lens(surfaces, light_sources, wavelengths,surface_diameters)
-            #print('last surface distace---------------------',flush=True)
-            #print(lens.surface_group.surfaces[-2].thickness,flush=True)
+
             if lens.surface_group.surfaces[-2].thickness==0:
                 use_optimization = True
             else:
@@ -993,7 +947,6 @@ def creat_lens(request):
             zmx_path='/etc/secrets/lens_.zmx'
             lens = parse_zmx_and_create_optic(zmx_path)
             use_optimization = False
-        print(surface_diameters,flush=True)
     return use_optimization,lens,surface_diameters
 
 # -----------------------------------------
@@ -1011,18 +964,15 @@ def optimize():
     print('Optimization has been called----------------', flush=True)
     optim_config = payload["optim_config"]
     print('-------------optim is called')
-    print(lens.paraxial.f1(),flush=True)
     lens=optimize_opt(lens, optim_config)
     normalize_asphere_coefficients(lens)
 
-    print(lens.paraxial.f1(),flush=True)
     data = extract_optical_data(lens, surface_diameters)
     try:
         lens_json = save_lens_to_json(lens)
         # Convert to JSON string to avoid Infinity serialization issues
         # Frontend will save this string directly as a file
         data["lens_file"] = json.dumps(lens_json, indent=2, allow_nan=True)
-        #print("✅ Lens JSON file included in response as string", flush=True)
     except Exception as e:
         print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
         data["lens_file"] = None
@@ -1037,19 +987,13 @@ def simulate():
     try:
         print('----------------test------',flush=True)
         use_optimization,lens,surface_diameters=creat_lens(request)
-        print('lens.para:')
-        print(lens.paraxial.f1(),flush=True)
-        print('use_optim:')
-        print(use_optimization,flush=True)
-        print('--------------end of test---------',flush=True)
+
 
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
             # Try to assign is_stop to each valid surface until one works
             valid_indices = list(range(1, len(lens.surface_group.surfaces)))
             success = False
-            # print("valid_indicies",flush=True)
-            # print(valid_indices,flush=True)
             for i in valid_indices:
                 # Reset all is_stop flags
                 for s in lens.surface_group.surfaces:
@@ -1058,35 +1002,15 @@ def simulate():
                 lens.surface_group.surfaces[i].is_stop = True
 
                 try:
-                    # === Trace rays and compute best image distance ===
-                    '''lens.trace(Hx=0, Hy=0, wavelength=0.55, num_rays=10, distribution="line_y")
 
-                    # Use the last two surfaces to estimate best intersection
-                    x_all = lens.surface_group.z
-                    y_all = lens.surface_group.y
-
-                    x0 = x_all[-2]  # second to last surface (before image)
-                    y0 = y_all[-2]
-                    x1 = x_all[-1]  # last surface (image plane, initial guess)
-                    y1 = y_all[-1]
-
-                    best_point = best_intersection_point(x0, y0, x1, y1)
-                    print('best_point')
-                    print(best_point)
-                    image_distance = best_point[0] - x0[len(x0) // 2]
-
-                    # Set the new thickness for the second-to-last surface
-                    lens.set_thickness(image_distance, len(lens.surface_group.surfaces) - 2)'''
                     lens=find_image_plane(lens)
                     # Now extract data after adjusting image plane
                     data = extract_optical_data(lens, surface_diameters)
-                    #print(data["paraxial"],flush=True)
                     success = True
 
-                    #print(f"Successfully set stop surface at index {i}")
                     break
                 except Exception as e:
-                    #print(f"Surface {i} failed as stop surface: {e}",flush=True)
+                    print(f"Surface {i} failed as stop surface: {e}",flush=True)
                     continue
 
             if not success:
@@ -1094,8 +1018,7 @@ def simulate():
         else:
             # No optimization needed, just extract data
             data = extract_optical_data(lens, surface_diameters)
-        # print('data')
-        # print(data["all_fields_rays"])
+
 
         # Save lens as JSON and add to response
         try:
@@ -1103,7 +1026,6 @@ def simulate():
             # Convert to JSON string to avoid Infinity serialization issues
             # Frontend will save this string directly as a file
             data["lens_file"] = json.dumps(lens_json, indent=2, allow_nan=True)
-            #print("✅ Lens JSON file included in response as string", flush=True)
         except Exception as e:
             print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
             data["lens_file"] = None
