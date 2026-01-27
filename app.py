@@ -998,6 +998,7 @@ def simulate():
         print(use_optimization,flush=True)
         diameters = [get_diameter(s, lens) for s in lens.surface_group.surfaces]
         print('diameters calculated after create_lens:',flush=True)
+        lens.info()
         print(diameters,flush=True)
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
