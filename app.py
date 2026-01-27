@@ -578,6 +578,8 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
             lens.add_wavelength(value=0.55,is_primary=True)
         draw_called_list = [False]  # Track if draw() has been called
         diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
+        print('aparture:',flush=True)
+        print(Apr,flush=True)
         print('surface from front end:',flush=True)
         print(surface_diameter,flush=True)
         print('surface from back end:',flush=True)
