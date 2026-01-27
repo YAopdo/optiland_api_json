@@ -529,20 +529,31 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
             else:
                 material = "Air"
 
-            
-            kwargs = {
-                "index":        i,
-                "radius":       s["radius"],
-                "thickness":    s["thickness"],
-                "material":     material,
-                "surface_type": s.get("surface_type"),
-                "conic":        s.get("conic"),
-                "coefficients": s.get("coefficients"),
-            }
+            if i==1:
+                kwargs = {
+                    "index":        i,
+                    "radius":       s["radius"],
+                    "thickness":    s["thickness"],
+                    "material":     material,
+                    "surface_type": s.get("surface_type"),
+                    "conic":        s.get("conic"),
+                    "coefficients": s.get("coefficients"),
+                    "is_stop": True,
+                }
+            else:
+                kwargs = {
+                    "index":        i,
+                    "radius":       s["radius"],
+                    "thickness":    s["thickness"],
+                    "material":     material,
+                    "surface_type": s.get("surface_type"),
+                    "conic":        s.get("conic"),
+                    "coefficients": s.get("coefficients"),
+                }
             kwargs = {k: v for k, v in kwargs.items() if v is not None}
             lens.add_surface(**kwargs)
 
-        lens.add_surface(index=len(surfaces_json) + 1, is_stop=True)
+        lens.add_surface(index=len(surfaces_json) + 1)
         lens.set_aperture(aperture_type="EPD", value=Apr)
         # === Handle light sources ===
         if light_sources:
