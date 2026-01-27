@@ -591,6 +591,9 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diame
             Apr=Apr+(surface_diameter[0]-diameters[1])/2
         #else:
        #     Apr=Apr+.01
+    diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
+    print('............final diameter at build_lens:',flush=True)
+    print(diameters,flush=True)
     return lens
 
 def build_lens_from_zmx(zmx_path):
@@ -989,34 +992,42 @@ def simulate():
     try:
         print('----------------test------',flush=True)
         use_optimization,lens,surface_diameters=creat_lens(request)
-
-
+        print('surface_diameters for build_lens:',flush=True)
+        print(surface_diameters,flush=True)
+        print('use_optimization for build_lens:',flush=True)
+        print(use_optimization,flush=True)
+        diameters = [get_diameter(s, lens) for s in lens.surface_group.surfaces]
+        print('diameters calculated after create_lens:',flush=True)
+        print(diameters,flush=True)
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
-            # Try to assign is_stop to each valid surface until one works
-            valid_indices = list(range(1, len(lens.surface_group.surfaces)))
-            success = False
-            for i in valid_indices:
-                # Reset all is_stop flags
-                for s in lens.surface_group.surfaces:
-                    s.is_stop = False
-                # Set candidate
-                lens.surface_group.surfaces[i].is_stop = True
+            lens=find_image_plane(lens)
+            data = extract_optical_data(lens, surface_diameters)
+            success = True
+            # # Try to assign is_stop to each valid surface until one works
+            # valid_indices = list(range(1, len(lens.surface_group.surfaces)))
+            # success = False
+            # for i in valid_indices:
+            #     # Reset all is_stop flags
+            #     for s in lens.surface_group.surfaces:
+            #         s.is_stop = False
+            #     # Set candidate
+            #     lens.surface_group.surfaces[i].is_stop = True
 
-                try:
+            #     try:
 
-                    lens=find_image_plane(lens)
-                    # Now extract data after adjusting image plane
-                    data = extract_optical_data(lens, surface_diameters)
-                    success = True
+            #         lens=find_image_plane(lens)
+            #         # Now extract data after adjusting image plane
+            #         data = extract_optical_data(lens, surface_diameters)
+            #         success = True
 
-                    break
-                except Exception as e:
-                    print(f"Surface {i} failed as stop surface: {e}",flush=True)
-                    continue
+            #         break
+            #     except Exception as e:
+            #         print(f"Surface {i} failed as stop surface: {e}",flush=True)
+            #         continue
 
-            if not success:
-                raise RuntimeError("No valid stop surface found.")
+            # if not success:
+            #     raise RuntimeError("No valid stop surface found.")
         else:
             # No optimization needed, just extract data
             data = extract_optical_data(lens, surface_diameters)
