@@ -1005,7 +1005,8 @@ def creat_lens(request):
         print('Simulation has been called----------------', flush=True)
         surfaces = payload["surfaces"]
         print('surfaces...........',flush=True)
-        print(surfaces,flush=True)
+        for count in range(len(surfaces)):
+            print(surfaces[count],flush=True)
         # Extract diameters from surfaces if available
         surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
         print('surfaces:------------',flush=True)
