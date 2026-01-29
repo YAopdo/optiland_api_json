@@ -1004,7 +1004,8 @@ def creat_lens(request):
         payload = request.get_json(force=True)
         print('Simulation has been called----------------', flush=True)
         surfaces = payload["surfaces"]
-
+        print('surfaces...........',flush=True)
+        print(surfaces,flush=True)
         # Extract diameters from surfaces if available
         surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
         print('surfaces:------------',flush=True)
@@ -1021,13 +1022,16 @@ def creat_lens(request):
         
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
-
+        print('light_sources....',flush=True)
+        print(light_sources,flush=True)
+        
         notfake=True
         for i in range(len(surfaces)):
             if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
                 notfake=False
         if notfake:
-
+            print('surfaces before build_lens:------------',flush=True)
+            print(surface_diameters,flush=True)
             lens = build_lens(surfaces, light_sources, wavelengths,surface_diameters)
 
             if lens.surface_group.surfaces[-2].thickness==0:
