@@ -21,87 +21,44 @@ import math
 import numpy as np
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import math
+import numpy as np
+from typing import Any, Dict, List, Optional, Sequence
 
-def analyze_lenses_from_request(
-    payload: Dict[str, Any],
-    n_pts: int = 600,
-    plot: bool = False,
-) -> Dict[str, Any]:
+def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> Dict[str, List[float]]:
     """
-    Input: payload dict from Flask request.get_json(force=True)
-           Must contain: payload["surfaces"] = list of surfaces
-           Each surface can contain:
-             - radius (None => inf)
-             - thickness (distance to next vertex)
-             - diameter (optional; if missing we can't do aperture-overlap precisely)
-             - conic (optional)
-             - coefficients (optional)  # even-asphere coefficients [C1,C2,...] meaning r^(2), r^(4), ...
-             - index (optional)         # if present => medium after surface is glass
+    Minimal output:
+      {"Lense edge": [edge_t_lens0, edge_t_lens1, ...],
+       "gaps":       [min_gap_0_1,  min_gap_1_2,  ...]}
 
-    Output:
-      {
-        "lens_elements": [
-           {
-             "lens_index": 0,
-             "front_surface_index": i,
-             "back_surface_index": i+1,
-             "diameter_used": D,
-             "center_thickness": t_glass,
-             "edge_thickness": edge_t,
-             "edge_thickness_ok": bool,
-             "details": {...}
-           }, ...
-        ],
-        "adjacent_lens_gaps": [
-           {
-             "pair": [lens_i, lens_i_plus_1],
-             "back_surface_index": s_back,
-             "front_surface_index": s_front,
-             "air_gap_on_axis": gap,
-             "r_max_used": rmax,
-             "min_distance": dmin,
-             "r_at_min": rmin,
-             "intersection": bool
-           }, ...
-        ]
-      }
+    Assumptions aligned with your backend builder:
+      - surfaces[i] containing "index" means the medium AFTER surface i is glass
+      - A "lens element" is (front=i, back=i+1) with center thickness = surfaces[i]["thickness"]
+      - Adjacent-lens gap is between back of lens i and front of lens i+1
+      - If diameters exist for all surfaces, overlap radius uses min(diameters); otherwise best-effort.
 
-    Notes:
-      - "min_distance" here is axial distance x2(r) - x1(r) across radius r,
-        evaluated at shared r region. Negative => intersection.
-      - "edge_thickness" uses the same asphere sag model you provided.
+    Uses even-asphere sag:
+      z = r^2/(R*(1 + sqrt(1 - (1+k) r^2/R^2))) + sum(Ci * r^(2i))
+      x(r) = vertex_x + z(r)
     """
 
     surfaces = payload["surfaces"]
 
-    # --- normalize radii (None -> inf) ---
+    # Normalize radii (None -> inf)
     for s in surfaces:
         if s.get("radius") is None:
             s["radius"] = float("inf")
 
-    # --- helper: safely fetch diameter list (can be missing) ---
-    surface_diameters = [s.get("diameter", None) for s in surfaces]
-    have_all_diameters = all(d is not None for d in surface_diameters)
+    # Diameters (optional)
+    diam_list = [s.get("diameter", None) for s in surfaces]
+    have_all_diam = all(d is not None for d in diam_list)
 
-    # ---------------------------
-    #   Sag / surface functions
-    # ---------------------------
     def _coeff_list(v: Any) -> List[float]:
         if v is None:
             return []
-        if isinstance(v, (list, tuple, np.ndarray)):
-            return [float(x) for x in v]
-        raise ValueError("coefficients must be a list/tuple/array or None")
+        return [float(x) for x in v]
 
     def sag_even_asphere(R: float, k: float, coeffs: Sequence[float], r: float) -> float:
-        """
-        z = r^2 / (R*(1 + sqrt(1 - (1+k) r^2 / R^2))) + sum(Ci * r^(2i))
-        z is measured along +x from vertex plane.
-        """
-        if r < 0:
-            raise ValueError("r must be >= 0")
-
-        # base conic sag
         if math.isinf(R):
             z_base = 0.0
         else:
@@ -113,7 +70,6 @@ def analyze_lenses_from_request(
                 return float("nan")
             z_base = (r * r) / denom
 
-        # even asphere polynomial
         z_poly = 0.0
         for i, Ci in enumerate(coeffs, start=1):
             z_poly += Ci * (r ** (2 * i))
@@ -125,251 +81,87 @@ def analyze_lenses_from_request(
         coeffs = _coeff_list(s.get("coefficients"))
         return vertex_x + sag_even_asphere(R, k, coeffs, r)
 
-    # ---------------------------
-    #   Build vertex positions
-    # ---------------------------
-    # vertex_x[i] = x-position of surface i vertex plane
-    vertex_x: List[float] = [0.0]
-    for i, s in enumerate(surfaces):
+    # Vertex x positions for each surface (global coordinates)
+    vertex_x = [0.0]
+    for s in surfaces:
         t = s.get("thickness", 0.0)
         if t is None:
             t = 0.0
         if t == float("inf") or t == np.inf:
-            # Stop accumulating after infinity (object/image plane). Keep but don't extend.
             vertex_x.append(vertex_x[-1] + float("inf"))
         else:
             vertex_x.append(vertex_x[-1] + float(t))
 
-    # ---------------------------
-    #   Identify lens elements
-    # ---------------------------
-    # Lens element definition (based on your builder logic):
-    #   surface i has "index" => glass after surface i for thickness surfaces[i]["thickness"]
-    #   then surface i+1 should typically be the back surface of that glass,
-    #   and after it is usually air (no "index").
-    #
-    # We'll robustly form an element whenever:
-    #   surfaces[i] is glass-medium, and next surface exists (i+1).
-    lens_elements: List[Dict[str, Any]] = []
-    lens_surface_pairs: List[Tuple[int, int]] = []  # (front_i, back_i)
-
+    # Detect lens elements as (front_i, back_i) pairs
+    lens_pairs = []
     i = 0
     while i < len(surfaces) - 1:
-        is_glass_after = ("index" in surfaces[i])
-        if is_glass_after:
-            front_idx = i
-            back_idx = i + 1
-            lens_surface_pairs.append((front_idx, back_idx))
-            i = back_idx  # advance at least to back surface
+        if "index" in surfaces[i]:
+            lens_pairs.append((i, i + 1))
+            i = i + 1
         i += 1
 
-    # ---------------------------
-    #   Compute edge thickness per lens
-    # ---------------------------
-    for lens_idx, (front_i, back_i) in enumerate(lens_surface_pairs):
-        s_front = surfaces[front_i]
-        s_back  = surfaces[back_i]
+    # --- Edge thickness per lens element ---
+    lens_edges: List[float] = []
+    for (front_i, back_i) in lens_pairs:
+        t_glass = float(surfaces[front_i].get("thickness", 0.0))
 
-        # center thickness = thickness after front surface (in glass)
-        t_glass = float(s_front.get("thickness", 0.0))
-
-        # Choose diameter to evaluate edge thickness:
-        # if both surface diameters exist -> use min (shared clear aperture)
-        if have_all_diameters:
-            D = float(min(surface_diameters[front_i], surface_diameters[back_i]))
+        # Choose diameter for edge eval
+        if have_all_diam:
+            D = float(min(diam_list[front_i], diam_list[back_i]))
         else:
-            # fallback: try per-surface diameter if present, else can't compute edge (set NaN)
-            d1 = s_front.get("diameter")
-            d2 = s_back.get("diameter")
-            D = float(min(d for d in [d1, d2] if d is not None)) if (d1 is not None or d2 is not None) else float("nan")
+            d1 = surfaces[front_i].get("diameter")
+            d2 = surfaces[back_i].get("diameter")
+            if d1 is None and d2 is None:
+                lens_edges.append(float("nan"))
+                continue
+            D = float(min([d for d in (d1, d2) if d is not None]))
 
-        r_edge = D / 2.0 if np.isfinite(D) else float("nan")
+        r_edge = D / 2.0
 
-        # edge thickness = x_back(r_edge) - x_front(r_edge)
-        # with local vertices at 0 and t_glass
-        if np.isfinite(r_edge):
-            x_front_edge = surface_x(0.0, s_front, r_edge)
-            x_back_edge  = surface_x(t_glass, s_back, r_edge)
-            edge_t = x_back_edge - x_front_edge
-        else:
-            edge_t = float("nan")
-            x_front_edge = float("nan")
-            x_back_edge = float("nan")
+        # Local coordinates for edge thickness: front vertex at 0, back vertex at t_glass
+        x_front_edge = surface_x(0.0, surfaces[front_i], r_edge)
+        x_back_edge  = surface_x(t_glass, surfaces[back_i], r_edge)
 
-        lens_elements.append({
-            "lens_index": lens_idx,
-            "front_surface_index": front_i,
-            "back_surface_index": back_i,
-            "diameter_used": D,
-            "center_thickness": t_glass,
-            "edge_thickness": float(edge_t),
-            "edge_thickness_ok": bool(np.isfinite(edge_t) and edge_t >= 0.0),
-            "details": {
-                "x_front_edge": float(x_front_edge),
-                "x_back_edge": float(x_back_edge),
-                "r_edge": float(r_edge),
-            }
-        })
+        lens_edges.append(float(x_back_edge - x_front_edge))
 
-    # ---------------------------
-    #   Minimum distance between adjacent lenses
-    # ---------------------------
-    adjacent_gaps: List[Dict[str, Any]] = []
+    # --- Minimum gap between adjacent lenses ---
+    gaps: List[float] = []
 
-    def min_distance_between_surfaces(
-        s1_index: int,
-        s2_index: int,
-        r_max: float,
-        n_pts: int,
-    ) -> Tuple[float, float, float, float]:
-        """
-        Returns (dmin, r_at_min, x1_at_min, x2_at_min)
-        """
+    def min_gap_between_surfaces(s1_idx: int, s2_idx: int, r_max: float) -> float:
         rr = np.linspace(0.0, r_max, n_pts)
-
-        v1 = vertex_x[s1_index]
-        v2 = vertex_x[s2_index]
-
-        x1 = np.array([surface_x(v1, surfaces[s1_index], float(r)) for r in rr])
-        x2 = np.array([surface_x(v2, surfaces[s2_index], float(r)) for r in rr])
-
+        x1 = np.array([surface_x(vertex_x[s1_idx], surfaces[s1_idx], float(r)) for r in rr])
+        x2 = np.array([surface_x(vertex_x[s2_idx], surfaces[s2_idx], float(r)) for r in rr])
         valid = np.isfinite(x1) & np.isfinite(x2)
         if not np.any(valid):
-            return float("nan"), float("nan"), float("nan"), float("nan")
+            return float("nan")
+        d = x2[valid] - x1[valid]
+        return float(np.min(d))
 
-        rr_v = rr[valid]
-        d = (x2[valid] - x1[valid])
-        j = int(np.argmin(d))
-        return float(d[j]), float(rr_v[j]), float(x1[valid][j]), float(x2[valid][j])
+    for p in range(len(lens_pairs) - 1):
+        back_i = lens_pairs[p][1]
+        front_j = lens_pairs[p + 1][0]
 
-    # Adjacent lens pair definition:
-    #   lens L uses (front_i, back_i)
-    #   next lens uses (front_j, back_j)
-    # distance computed between back_i and front_j
-    for p in range(len(lens_surface_pairs) - 1):
-        lens_i = p
-        lens_j = p + 1
-        back_i = lens_surface_pairs[lens_i][1]
-        front_j = lens_surface_pairs[lens_j][0]
-
-        # air gap on axis is vertex difference:
-        #   vertex_x[front_j] - vertex_x[back_i]
-        gap_on_axis = vertex_x[front_j] - vertex_x[back_i]
-
-        # r_max used: overlap of the two surface clear apertures if available
-        if have_all_diameters:
-            rmax = 0.5 * float(min(surface_diameters[back_i], surface_diameters[front_j]))
+        # shared radius region
+        if have_all_diam:
+            r_max = 0.5 * float(min(diam_list[back_i], diam_list[front_j]))
         else:
-            # fallback: whichever available, else use 0 (can't compute)
             d_back = surfaces[back_i].get("diameter")
             d_front = surfaces[front_j].get("diameter")
-            if d_back is not None and d_front is not None:
-                rmax = 0.5 * float(min(d_back, d_front))
-            elif d_back is not None:
-                rmax = 0.5 * float(d_back)
-            elif d_front is not None:
-                rmax = 0.5 * float(d_front)
+            if d_back is None and d_front is None:
+                gaps.append(float("nan"))
+                continue
+            if d_back is None:
+                r_max = 0.5 * float(d_front)
+            elif d_front is None:
+                r_max = 0.5 * float(d_back)
             else:
-                rmax = 0.0
+                r_max = 0.5 * float(min(d_back, d_front))
 
-        if rmax <= 0:
-            dmin = float("nan")
-            r_at_min = float("nan")
-        else:
-            dmin, r_at_min, x1m, x2m = min_distance_between_surfaces(back_i, front_j, rmax, n_pts)
+        gaps.append(min_gap_between_surfaces(back_i, front_j, r_max))
 
-        adjacent_gaps.append({
-            "pair": [lens_i, lens_j],
-            "back_surface_index": back_i,
-            "front_surface_index": front_j,
-            "air_gap_on_axis": float(gap_on_axis) if np.isfinite(gap_on_axis) else float("nan"),
-            "r_max_used": float(rmax),
-            "min_distance": float(dmin),
-            "r_at_min": float(r_at_min),
-            "intersection": bool(np.isfinite(dmin) and dmin < 0.0),
-        })
+    return {"Lense edge": lens_edges, "gaps": gaps}
 
-    # ---------------------------
-    #   Optional plotting
-    # ---------------------------
-    if plot:
-        import matplotlib.pyplot as plt
-
-        # Plot each lens element profile (front/back surfaces)
-        for le in lens_elements:
-            front_i = le["front_surface_index"]
-            back_i = le["back_surface_index"]
-            D = le["diameter_used"]
-            if not np.isfinite(D) or D <= 0:
-                continue
-            rmax = D / 2.0
-            rr = np.linspace(0.0, rmax, n_pts)
-
-            # local vertices for edge thickness plot
-            t_glass = le["center_thickness"]
-            xF = np.array([surface_x(0.0, surfaces[front_i], float(r)) for r in rr])
-            xB = np.array([surface_x(t_glass, surfaces[back_i], float(r)) for r in rr])
-
-            plt.figure(figsize=(8, 3.5))
-            plt.plot(xF,  rr, linewidth=2, label=f"Lens {le['lens_index']} front")
-            plt.plot(xB,  rr, linewidth=2, label=f"Lens {le['lens_index']} back")
-            plt.plot(xF, -rr, linewidth=2)
-            plt.plot(xB, -rr, linewidth=2)
-            plt.gca().set_aspect("equal", adjustable="box")
-            plt.title(f"Lens {le['lens_index']} | edge thickness = {le['edge_thickness']:.6g}")
-            plt.xlabel("x")
-            plt.ylabel("y")
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
-
-        # Plot each adjacent gap with min-distance marker
-        for g in adjacent_gaps:
-            back_i = g["back_surface_index"]
-            front_j = g["front_surface_index"]
-            rmax = g["r_max_used"]
-            if not np.isfinite(rmax) or rmax <= 0:
-                continue
-
-            rr = np.linspace(0.0, rmax, n_pts)
-            x1 = np.array([surface_x(vertex_x[back_i],  surfaces[back_i],  float(r)) for r in rr])
-            x2 = np.array([surface_x(vertex_x[front_j], surfaces[front_j], float(r)) for r in rr])
-
-            valid = np.isfinite(x1) & np.isfinite(x2)
-            rr_v = rr[valid]
-            x1_v = x1[valid]
-            x2_v = x2[valid]
-            d = x2_v - x1_v
-            j = int(np.argmin(d))
-
-            plt.figure(figsize=(8, 3.5))
-            plt.plot(x1_v,  rr_v, linewidth=2, label="Back surface (lens i)")
-            plt.plot(x2_v,  rr_v, linewidth=2, label="Front surface (lens i+1)")
-            plt.plot(x1_v, -rr_v, linewidth=2)
-            plt.plot(x2_v, -rr_v, linewidth=2)
-
-            # marker at min
-            plt.scatter([x1_v[j], x2_v[j]], [rr_v[j], rr_v[j]], color="red", zorder=5)
-            plt.plot([x1_v[j], x2_v[j]], [rr_v[j], rr_v[j]], "r--", linewidth=2)
-
-            plt.gca().set_aspect("equal", adjustable="box")
-            plt.title(f"Gap {g['pair']} | min distance = {float(d[j]):.6g} at r={float(rr_v[j]):.4g}")
-            plt.xlabel("x")
-            plt.ylabel("y")
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
-
-    return {
-        "lens_elements": lens_elements,
-        "adjacent_lens_gaps": adjacent_gaps,
-        "meta": {
-            "n_surfaces": len(surfaces),
-            "n_lens_elements": len(lens_elements),
-            "have_all_diameters": have_all_diameters,
-            "n_pts": n_pts,
-        }
-    }
 
 def check_thickness_json(
     lens,
@@ -1446,7 +1238,7 @@ def analyze_geometry():
         if s.get("radius") is None:
             s["radius"] = float("inf")
 
-    out = analyze_lenses_from_request(payload, n_pts=800, plot=False)
+    out = geometry_summary_from_request(payload, n_pts=800)
     return jsonify(out)
 
 @app.route("/check_manufacturability", methods=["POST"])
