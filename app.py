@@ -1150,6 +1150,9 @@ def creat_lens(request):
         payload = request.get_json(force=True)
         print('Simulation has been called----------------', flush=True)
         surfaces = payload["surfaces"]
+        Aperture = payload["aperture"]
+        print('Aperture............',flush=True)
+        print(Aperture,flush=True)
         print('surfaces...........',flush=True)
         for count in range(len(surfaces)):
             print(surfaces[count],flush=True)
