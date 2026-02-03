@@ -52,7 +52,10 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
     # Diameters (optional)
     diam_list = [s.get("diameter", None) for s in surfaces]
     have_all_diam = all(d is not None for d in diam_list)
-
+    print('diameter_check_manuf......',flush=True)
+    print(diam_list,flush=True)
+    print('have_all_diam...',flush=True)
+    print(have_all_diam,flush=True)
     def _coeff_list(v: Any) -> List[float]:
         if v is None:
             return []
