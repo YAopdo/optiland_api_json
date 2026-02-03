@@ -159,7 +159,10 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
                 r_max = 0.5 * float(min(d_back, d_front))
 
         gaps.append(min_gap_between_surfaces(back_i, front_j, r_max))
-
+        print('gaps:',flush=True)
+        print(gaps,flush=True)
+        print('lens edges:',flush=True)
+        print(lens_edges,flush=True)
     return {"Lense edge": lens_edges, "gaps": gaps}
 
 
