@@ -735,100 +735,84 @@ def parse_zmx_and_create_optic(zmx_path: str):
 # Lens Builder
 # -----------------------------------------
 
-def build_lens(surfaces_json, light_sources=None, wavelengths=None,surface_diameter=None):
+def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
     need_aparture_fix=True
-    Apr=surface_diameter[0]
-    count=0
-    while (need_aparture_fix) & (count<10):
-        count+=1
-        lens = optic.Optic()
-        
-        # --- Determine object plane thickness ---
-        if light_sources and light_sources[0].get("type") == "point":
-            x_object = light_sources[0].get("x", 0)
-            lens.add_surface(index=0, thickness=float(x_object))
-        else:
-            lens.add_surface(index=0, thickness=np.inf)
-        for i, s in enumerate(surfaces_json, start=1):
-            # Construct material using refractive index, fallback to air
-            if "index" in s:
-                material = AbbeMaterial(n=s["index"], abbe=60)
-            else:
-                material = "Air"
 
-            if i==1:
-                kwargs = {
-                    "index":        i,
-                    "radius":       s["radius"],
-                    "thickness":    s["thickness"],
-                    "material":     material,
-                    "surface_type": s.get("surface_type"),
-                    "conic":        s.get("conic"),
-                    "coefficients": s.get("coefficients"),
-                    "is_stop": True,
-                }
-            else:
-                kwargs = {
-                    "index":        i,
-                    "radius":       s["radius"],
-                    "thickness":    s["thickness"],
-                    "material":     material,
-                    "surface_type": s.get("surface_type"),
-                    "conic":        s.get("conic"),
-                    "coefficients": s.get("coefficients"),
-                }
-            kwargs = {k: v for k, v in kwargs.items() if v is not None}
-            lens.add_surface(**kwargs)
-
-        lens.add_surface(index=len(surfaces_json) + 1)
-        lens.set_aperture(aperture_type="EPD", value=Apr)
-        # === Handle light sources ===
-        if light_sources:
-            first_type = light_sources[0].get("type")
-            if first_type == "infinity":
-                lens.set_field_type("angle")
-                for src in light_sources:
-                    angle = src.get("angle", 0)
-                    y = angle
-                    lens.add_field(y=y)
-            elif first_type == "point":
-                lens.set_field_type("object_height")
-                for src in light_sources:
-                    x = src.get("x", 0)
-                    lens.set_thickness(x,0)
-                    y = src.get("y", 0)
-                    lens.add_field(y=y)
+    lens = optic.Optic()
+    
+    # --- Determine object plane thickness ---
+    if light_sources and light_sources[0].get("type") == "point":
+        x_object = light_sources[0].get("x", 0)
+        lens.add_surface(index=0, thickness=float(x_object))
+    else:
+        lens.add_surface(index=0, thickness=np.inf)
+    for i, s in enumerate(surfaces_json, start=1):
+        # Construct material using refractive index, fallback to air
+        if "index" in s:
+            material = AbbeMaterial(n=s["index"], abbe=60)
         else:
+            material = "Air"
+
+        if i==1:
+            kwargs = {
+                "index":        i,
+                "radius":       s["radius"],
+                "thickness":    s["thickness"],
+                "material":     material,
+                "surface_type": s.get("surface_type"),
+                "conic":        s.get("conic"),
+                "coefficients": s.get("coefficients"),
+                "is_stop": True,
+            }
+        else:
+            kwargs = {
+                "index":        i,
+                "radius":       s["radius"],
+                "thickness":    s["thickness"],
+                "material":     material,
+                "surface_type": s.get("surface_type"),
+                "conic":        s.get("conic"),
+                "coefficients": s.get("coefficients"),
+            }
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        lens.add_surface(**kwargs)
+
+    lens.add_surface(index=len(surfaces_json) + 1)
+    lens.set_aperture(aperture_type="EPD", value=Apr)
+    # === Handle light sources ===
+    if light_sources:
+        first_type = light_sources[0].get("type")
+        if first_type == "infinity":
             lens.set_field_type("angle")
-            lens.add_field(y=0)
-            lens.add_field(y=5)
+            for src in light_sources:
+                angle = src.get("angle", 0)
+                y = angle
+                lens.add_field(y=y)
+        elif first_type == "point":
+            lens.set_field_type("object_height")
+            for src in light_sources:
+                x = src.get("x", 0)
+                lens.set_thickness(x,0)
+                y = src.get("y", 0)
+                lens.add_field(y=y)
+    else:
+        lens.set_field_type("angle")
+        lens.add_field(y=0)
+        lens.add_field(y=5)
 
-        # === Handle multiple wavelengths ===
-        if wavelengths:
-            ISPRIME=True
-            for w in wavelengths:
-                if ISPRIME:
-                    lens.add_wavelength(value=w,is_primary=True)
-                    ISPRIME=False
-                else:
-                    lens.add_wavelength(value=w)
-        else:
-            lens.add_wavelength(value=0.55,is_primary=True)
-        draw_called_list = [False]  # Track if draw() has been called
-        diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
-        print('aparture:',flush=True)
-        print(Apr,flush=True)
-        print('surface from front end:',flush=True)
-        print(surface_diameter,flush=True)
-        print('surface from back end:',flush=True)
-        print(diameters,flush=True)
-        
-        if abs(surface_diameter[0]-diameters[1])<.05:
-            need_aparture_fix=False
-        else: 
-            Apr=Apr+(surface_diameter[0]-diameters[1])/2
-        #else:
-       #     Apr=Apr+.01
+    # === Handle multiple wavelengths ===
+    if wavelengths:
+        ISPRIME=True
+        for w in wavelengths:
+            if ISPRIME:
+                lens.add_wavelength(value=w,is_primary=True)
+                ISPRIME=False
+            else:
+                lens.add_wavelength(value=w)
+    else:
+        lens.add_wavelength(value=0.55,is_primary=True)
+    draw_called_list = [False]  # Track if draw() has been called
+
     diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
     print('............final diameter at build_lens:',flush=True)
     print(diameters,flush=True)
@@ -1182,7 +1166,7 @@ def creat_lens(request):
         if notfake:
             print('surfaces before build_lens:------------',flush=True)
             print(surface_diameters,flush=True)
-            lens = build_lens(surfaces, light_sources, wavelengths,surface_diameters)
+            lens = build_lens(surfaces, light_sources, wavelengths,Aperture)
 
             if lens.surface_group.surfaces[-2].thickness==0:
                 use_optimization = True
