@@ -906,7 +906,7 @@ def get_diameter(surface, lens=None, draw_called_list=None):
         return 10.0
 
 def extract_optical_data(lens, surface_diameters=None):
-    spot = analysis.SpotDiagram(lens, num_rings=8)
+    spot = analysis.SpotDiagram(lens, num_rings=20)
     fan = analysis.RayFan(lens)
 
     # Try to calculate distortion, but it may fail for some lens configurations
