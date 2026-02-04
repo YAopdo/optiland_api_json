@@ -56,10 +56,7 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
     #diam_list = [s.get("diameter", None) for s in surfaces]
     diam_list       = [s.get("diameter") for s in surfaces if "diameter" in s]
     have_all_diam = all(d is not None for d in diam_list)
-    print('diameter_check_manuf......',flush=True)
-    print(diam_list,flush=True)
-    print('have_all_diam...',flush=True)
-    print(have_all_diam,flush=True)
+
     def _coeff_list(v: Any) -> List[float]:
         if v is None:
             return []
@@ -166,10 +163,7 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
                 r_max = 0.5 * float(min(d_back, d_front))
 
         gaps.append(min_gap_between_surfaces(back_i, front_j, r_max))
-        print('gaps:',flush=True)
-        print(gaps,flush=True)
-        print('lens edges:',flush=True)
-        print(lens_edges,flush=True)
+
 
     # Create lens_passed array: True if lens_edges[i] > 0, False otherwise
     lens_passed = [edge > 0 for edge in lens_edges]
@@ -1013,8 +1007,6 @@ def extract_optical_data(lens, surface_diameters=None):
     draw_called_list = [False]  # Track if draw() has been called
     diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
     diameters[0]=surface_diameters[0]
-    print('✅diameters calculated ', flush=True)
-    print(diameters,flush=True)
     surfaces = [
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
@@ -1146,18 +1138,11 @@ def creat_lens(request):
     # === Original JSON-based approach ===
     else:
         payload = request.get_json(force=True)
-        print('Simulation has been called----------------', flush=True)
         surfaces = payload["surfaces"]
         Aperture = payload["aperture"]
-        print('Aperture............',flush=True)
-        print(Aperture,flush=True)
-        print('surfaces...........',flush=True)
-        for count in range(len(surfaces)):
-            print(surfaces[count],flush=True)
         # Extract diameters from surfaces if available
         surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
-        print('surfaces:------------',flush=True)
-        print(surface_diameters,flush=True)
+
         if len(surface_diameters) != len(surfaces):
             # Not all surfaces have diameters, so don't use diameter-based blocking
             surface_diameters = None
@@ -1166,36 +1151,18 @@ def creat_lens(request):
         for surface in surfaces:
             if surface.get("radius") is None:
                 surface["radius"] = np.inf
-
-        
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
-        print('light_sources....',flush=True)
-        print(light_sources,flush=True)
-        
-        notfake=True
-        for i in range(len(surfaces)):
-            if np.abs(surfaces[i]["radius"]-11.461689750836818)<.01:
-                notfake=False
-        if notfake:
-            print('surfaces before build_lens:------------',flush=True)
-            print(surface_diameters,flush=True)
-            lens = build_lens(surfaces, light_sources, wavelengths,Aperture)
-
-            if lens.surface_group.surfaces[-2].thickness==0:
-                use_optimization = True
-            else:
-
-                for s in lens.surface_group.surfaces:
-                    s.is_stop = False
-                # Set candidate
-                lens.surface_group.surfaces[1].is_stop = True
-                use_optimization=False
+        lens = build_lens(surfaces, light_sources, wavelengths,Aperture)
+        if lens.surface_group.surfaces[-2].thickness==0:
+            use_optimization = True
         else:
-            # Demo/test case with hardcoded ZMX
-            zmx_path='/etc/secrets/lens_.zmx'
-            lens = parse_zmx_and_create_optic(zmx_path)
-            use_optimization = False
+            for s in lens.surface_group.surfaces:
+                s.is_stop = False
+            # Set candidate
+            lens.surface_group.surfaces[1].is_stop = True
+            use_optimization=False
+
     return use_optimization,lens,surface_diameters
 
 # -----------------------------------------
@@ -1232,6 +1199,8 @@ def optimize():
     return jsonify(clean_data)
 @app.route("/analyze_geometry", methods=["POST"])
 def analyze_geometry():
+    print('----------------manufacturability is running------',flush=True)
+
     payload = request.get_json(force=True)
 
     # Ensure None radii are converted (the function also does it, but ok)
@@ -1240,6 +1209,8 @@ def analyze_geometry():
             s["radius"] = float("inf")
 
     out = geometry_summary_from_request(payload, n_pts=800)
+    print('----------------manufacturability is done------',flush=True)
+
     return jsonify(out)
 
 @app.route("/check_manufacturability", methods=["POST"])
@@ -1258,45 +1229,13 @@ def check_manufacturability():
 
 def simulate():
     try:
-        print('----------------test------',flush=True)
+        print('----------------simulate is running------',flush=True)
         use_optimization,lens,surface_diameters=creat_lens(request)
-        print('surface_diameters for build_lens:',flush=True)
-        print(surface_diameters,flush=True)
-        print('use_optimization for build_lens:',flush=True)
-        print(use_optimization,flush=True)
-        diameters = [get_diameter(s, lens) for s in lens.surface_group.surfaces]
-        print('diameters calculated after create_lens:',flush=True)
         lens.info()
-        print(diameters,flush=True)
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
             lens=find_image_plane(lens)
             data = extract_optical_data(lens, surface_diameters)
-            success = True
-            # # Try to assign is_stop to each valid surface until one works
-            # valid_indices = list(range(1, len(lens.surface_group.surfaces)))
-            # success = False
-            # for i in valid_indices:
-            #     # Reset all is_stop flags
-            #     for s in lens.surface_group.surfaces:
-            #         s.is_stop = False
-            #     # Set candidate
-            #     lens.surface_group.surfaces[i].is_stop = True
-
-            #     try:
-
-            #         lens=find_image_plane(lens)
-            #         # Now extract data after adjusting image plane
-            #         data = extract_optical_data(lens, surface_diameters)
-            #         success = True
-
-            #         break
-            #     except Exception as e:
-            #         print(f"Surface {i} failed as stop surface: {e}",flush=True)
-            #         continue
-
-            # if not success:
-            #     raise RuntimeError("No valid stop surface found.")
         else:
             # No optimization needed, just extract data
             data = extract_optical_data(lens, surface_diameters)
@@ -1314,6 +1253,8 @@ def simulate():
 
         # Sanitize NaN and Inf values before returning JSON (lens_file is already a string, so it won't be affected)
         clean_data = sanitize_for_json(data)
+        print('----------------simulate is done------',flush=True)
+
         return jsonify(clean_data)
 
     except Exception as e:
