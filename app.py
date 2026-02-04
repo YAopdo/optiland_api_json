@@ -29,7 +29,10 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
     """
     Minimal output:
       {"Lense edge": [edge_t_lens0, edge_t_lens1, ...],
-       "gaps":       [min_gap_0_1,  min_gap_1_2,  ...]}
+       "gaps":       [min_gap_0_1,  min_gap_1_2,  ...],
+       "lens_passed": [bool0, bool1, ...]}
+
+    lens_passed[i] is True if lens_edges[i] > 0, otherwise False.
 
     Assumptions aligned with your backend builder:
       - surfaces[i] containing "index" means the medium AFTER surface i is glass
@@ -167,7 +170,11 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
         print(gaps,flush=True)
         print('lens edges:',flush=True)
         print(lens_edges,flush=True)
-    return {"Lense edge": lens_edges, "gaps": gaps}
+
+    # Create lens_passed array: True if lens_edges[i] > 0, False otherwise
+    lens_passed = [edge > 0 for edge in lens_edges]
+
+    return {"Lense edge": lens_edges, "gaps": gaps, "lens_passed": lens_passed}
 
 
 def check_thickness_json(
