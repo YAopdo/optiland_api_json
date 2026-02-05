@@ -1139,7 +1139,13 @@ def creat_lens(request):
     else:
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
-        Aperture = payload["aperture"]
+        #Aperture = payload["aperture"]
+        
+        if "aperture" in payload:
+            Aperture = payload["aperture"]
+        else:
+            Aperture = 10
+            print("Default aperture selected: 10",flush=True)
         # Extract diameters from surfaces if available
         surface_diameters = [s.get("diameter") for s in surfaces if "diameter" in s]
 
