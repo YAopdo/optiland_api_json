@@ -767,7 +767,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
                 "radius":       s["radius"],
                 "thickness":    s["thickness"],
                 "material":     material,
-                "surface_type": s.get("surface_type"),
+                "surface_type": s.get("surface_type", "even_asphere"),
                 "conic":        s.get("conic"),
                 "coefficients": s.get("coefficients"),
                 "is_stop": True,
@@ -778,7 +778,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
                 "radius":       s["radius"],
                 "thickness":    s["thickness"],
                 "material":     material,
-                "surface_type": s.get("surface_type"),
+                "surface_type": s.get("surface_type", "even_asphere"),
                 "conic":        s.get("conic"),
                 "coefficients": s.get("coefficients"),
             }
