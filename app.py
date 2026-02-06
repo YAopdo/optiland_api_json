@@ -511,7 +511,9 @@ def optimize_opt(request):
     Modify_thickness=optimizer_settings.get('modify_thickness', True)
     print('Modify_thickness',flush=True)
     print(Modify_thickness,flush=True)
-    while Modify_thickness:
+    counter=0
+    while counter<3:
+        counter+=1
         # Create optimization problem
         problem = optimization.OptimizationProblem()
 
@@ -738,10 +740,15 @@ def optimize_opt(request):
             print(f"⚠️ Failed to save lens JSON345: {e}", flush=True)
         print("\n=== Optimization Results ===")
         #problem.info()
-        Modify_thickness=False
         if Modify_thickness:
             surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
             lens,Modify_thickness=fix_lens_geometry_from_summary(lens,surfaces,.1)
+            print(counter,flush=True)
+            print('modified',flush=True)
+        else:
+            print(counter,flush=True)
+            print('not_modified',flush=True)
+            return lens,surface_diameters
     return lens,surface_diameters
 def sanitize_for_json(obj):
     """
