@@ -25,6 +25,59 @@ import math
 import numpy as np
 from typing import Any, Dict, List, Optional, Sequence
 from typing import Any, Dict, List, Sequence, Optional
+
+def fix_lens_geometry_from_summary(
+    lens,
+    summary: dict,
+    safety_margin: float = 1e-3,
+):
+    """
+    Fix lens geometry based on geometry_summary_from_request output.
+
+    Rules:
+    - If lens edge <= 0  → increase lens thickness
+    - If gap <= 0        → increase air gap thickness
+    - If everything OK   → lens is returned unchanged
+
+    Thickness index convention:
+      i=1 → first lens edge
+      i=2 → first gap
+      i=3 → second lens edge
+      i=4 → second gap
+      ...
+    """
+
+    lens_edges = summary.get("Lense edge", [])
+    gaps       = summary.get("gaps", [])
+
+    thickness_updates = []
+
+    # --- lens edges (glass thickness) ---
+    for k, edge in enumerate(lens_edges):
+        if edge <= 0:
+            delta = abs(edge) + safety_margin
+            thickness_index = 2 * k + 1   # 1, 3, 5, ...
+            thickness_updates.append((thickness_index, delta))
+
+    # --- gaps (air thickness) ---
+    for k, gap in enumerate(gaps):
+        if gap <= 0:
+            delta = abs(gap) + safety_margin
+            thickness_index = 2 * k + 2   # 2, 4, 6, ...
+            thickness_updates.append((thickness_index, delta))
+
+    # --- apply fixes ---
+    if not thickness_updates:
+        return lens,False  # everything fine
+
+    for i, delta in thickness_updates:
+        old_t = lens.surface_group.get_thickness(i)
+        new_t = old_t + delta
+        lens.set_thickness(new_t, i)
+
+    return lens,True
+
+
 def _to_float(v: Any) -> Optional[float]:
     if v is None:
         return None
@@ -676,10 +729,8 @@ def optimize_opt(request):
         print("\n=== Optimization Results ===")
         #problem.info()
         if Modify_thickness:
-            lens,Check_thickness=modify_thickness(lens,False)
             surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
-
-            geometry_report=geometry_summary_from_request(surfaces, 800)
+            lens,Modify_thickness=fix_lens_geometry_from_summary(lens,surfaces,.1)
     return lens,surface_diameters
 def sanitize_for_json(obj):
     """
@@ -1294,22 +1345,7 @@ def simulate():
         use_optimization,lens,surface_diameters=creat_lens(request)
         print('-------lens created-------',flush=True)
 
-        surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
 
-        geometry_report=geometry_summary_from_request(surfaces, 800)
-        
-        
-        payload = request.get_json(force=True)
-
-        # Ensure None radii are converted (the function also does it, but ok)
-        for s in payload["surfaces"]:
-            if s.get("radius") is None:
-                s["radius"] = float("inf")
-        surfaces = payload["surfaces"]
-        out = geometry_summary_from_request(surfaces, n_pts=800)
-
-        print(out,flush=True)
-        print(geometry_report,flush=True)
         lens.info()
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
