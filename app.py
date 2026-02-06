@@ -25,94 +25,66 @@ import math
 import numpy as np
 from typing import Any, Dict, List, Optional, Sequence
 from typing import Any, Dict, List, Sequence, Optional
+def _to_float(v: Any) -> Optional[float]:
+    if v is None:
+        return None
+    try:
+        return float(v)   # converts numpy scalars / 0d arrays to python float too
+    except Exception:
+        return None
 
-def build_surfaces_for_geometry_summary(lens, surface_diameters: Sequence[Optional[float]]) -> List[Dict[str, Any]]:
+def build_surfaces_for_geometry_summary(lens, surface_diameters: Sequence[Optional[float]],wl_um: float = 0.555) -> List[Dict[str, Any]]:
+     
     """
-    Build the `surfaces` list expected by geometry_summary_from_request()
-    from an Optiland `lens` + per-surface diameters.
-
-    Required keys per surface:
-      radius, thickness, diameter, conic, coefficients, and optionally `index` (presence => glass after surface).
+    surface_diameters ALWAYS excludes object & image planes.
+    lens surfaces include them, so we iterate i=1..n_total-2 and use diameters[i-1].
     """
-    # 1) number of surfaces
     sg = lens.surface_group
-    surfaces_obj = sg.surfaces[1:-1]
-    n = len(surfaces_obj)
+    s_objs = sg.surfaces
+    n_total = len(s_objs)
 
-    if len(surface_diameters) != n:
-        raise ValueError(f"surface_diameters length ({len(surface_diameters)}) must match #surfaces ({n}).")
-
-    def _get_radius(i: int) -> Optional[float]:
-        return getattr(surfaces_obj[i].geometry, "radius", None)
-
-    def _get_conic(i: int) -> float:
-        k = getattr(surfaces_obj[i].geometry, "k", 0.0)
-        return 0.0 if k is None else float(k)
-
-    def _get_coeffs(i: int) -> List[float]:
-        coeffs = getattr(surfaces_obj[i].geometry, "coefficients", None)
-        if coeffs is None:
-            return []
-        return [float(c) for c in coeffs]
-
-    def _get_thickness(i: int) -> float:
-        t = sg.get_thickness(i)
-        return 0.0 if t is None else float(t)
-
-    def _medium_is_glass_after(i: int) -> bool:
-        """
-        Best-effort detection of "glass after surface i".
-        We try a few common Optiland-ish attribute patterns.
-        If nothing is discoverable, we default to False (no index key).
-        """
-        s = surfaces_obj[i]
-
-        # Common-ish possibilities:
-        for attr in ("medium_after", "medium_next", "material_after", "material_next", "medium"):
-            m = getattr(s, attr, None)
-            if m is None:
-                continue
-
-            # If there is a 'name' and it looks like air, treat as not glass.
-            name = getattr(m, "name", None)
-            if isinstance(name, str) and name.strip().lower() in ("air", "vacuum"):
-                return False
-
-            # If refractive index exists and is clearly > 1, treat as glass.
-            for n_attr in ("n", "index", "refractive_index"):
-                nv = getattr(m, n_attr, None)
-                if nv is None:
-                    continue
-                try:
-                    nv_f = float(nv)
-                    if nv_f > 1.0005:
-                        return True
-                except Exception:
-                    pass
-
-            # If we have *some* medium object and it isn't clearly air, assume glass.
-            return True
-
-        return False
+    n_used = n_total - 2
+    if len(surface_diameters) != n_used:
+        raise ValueError(
+            f"surface_diameters must have length n_total-2 ({n_used}) because it excludes "
+            f"object & image planes, got {len(surface_diameters)} while lens has {n_total} surfaces."
+        )
 
     out: List[Dict[str, Any]] = []
-    for i in range(n):
+
+    # exclude object plane (0) and image plane (n_total-1)
+    for i in range(1, n_total - 1):
+        s = s_objs[i]
+        geom = s.geometry
+
+        radius = _to_float(getattr(geom, "radius", None))
+        conic  = _to_float(getattr(geom, "k", 0.0)) or 0.0
+
+        coeffs_raw = getattr(geom, "coefficients", None)
+        coefficients = [] if coeffs_raw is None else [float(c) for c in coeffs_raw]
+
+        thickness = _to_float(sg.get_thickness(i)) or 0.0
+        diameter  = _to_float(surface_diameters[i - 1])  # <-- shift because diameters exclude first/last
+
         s_dict: Dict[str, Any] = {
-            "radius":       _get_radius(i),
-            "thickness":    _get_thickness(i),
-            "diameter":     None if surface_diameters[i] is None else float(surface_diameters[i]),
-            "conic":        _get_conic(i),
-            "coefficients": _get_coeffs(i),
+            "radius": radius,
+            "thickness": thickness,
+            "diameter": diameter,
+            "conic": conic,
+            "coefficients": coefficients,
         }
 
-        # Only presence matters for your code
-        if _medium_is_glass_after(i):
-            s_dict["index"] = 1.0  # dummy value; not used by geometry_summary_from_request
+        # "index" presence => glass after surface i
+        try:
+            n_post = float(s.material_post.n(wl_um))
+            if math.isfinite(n_post) and n_post > 1.0005:
+                s_dict["index"] = n_post  # value unused; key presence is what your summary function checks
+        except Exception:
+            pass
 
         out.append(s_dict)
 
     return out
-
 def geometry_summary_from_request(surfaces, n_pts: int = 600) -> Dict[str, List[float]]:
     """
     Minimal output:
