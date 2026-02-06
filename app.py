@@ -677,7 +677,9 @@ def optimize_opt(request):
         #problem.info()
         if Modify_thickness:
             lens,Check_thickness=modify_thickness(lens,False)
-            #geometry_report=geometry_summary_from_request(surfaces, 800)
+            surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
+
+            geometry_report=geometry_summary_from_request(surfaces, 800)
     return lens,surface_diameters
 def sanitize_for_json(obj):
     """
@@ -1291,11 +1293,23 @@ def simulate():
         print('----------------simulate is running------',flush=True)
         use_optimization,lens,surface_diameters=creat_lens(request)
         print('-------lens created-------',flush=True)
-        test=build_surfaces_for_geometry_summary(lens, surface_diameters)
+
+        surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
+
+        geometry_report=geometry_summary_from_request(surfaces, 800)
+        
+        
         payload = request.get_json(force=True)
+
+        # Ensure None radii are converted (the function also does it, but ok)
+        for s in payload["surfaces"]:
+            if s.get("radius") is None:
+                s["radius"] = float("inf")
         surfaces = payload["surfaces"]
-        print(test,flush=True)
-        print(surfaces,flush=True)
+        out = geometry_summary_from_request(surfaces, n_pts=800)
+
+        print(out,flush=True)
+        print(geometry_report,flush=True)
         lens.info()
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
