@@ -24,8 +24,96 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import math
 import numpy as np
 from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Sequence, Optional
 
-def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> Dict[str, List[float]]:
+def build_surfaces_for_geometry_summary(lens, surface_diameters: Sequence[Optional[float]]) -> List[Dict[str, Any]]:
+    """
+    Build the `surfaces` list expected by geometry_summary_from_request()
+    from an Optiland `lens` + per-surface diameters.
+
+    Required keys per surface:
+      radius, thickness, diameter, conic, coefficients, and optionally `index` (presence => glass after surface).
+    """
+    # 1) number of surfaces
+    sg = lens.surface_group
+    surfaces_obj = sg.surfaces
+    n = len(surfaces_obj)
+
+    if len(surface_diameters) != n:
+        raise ValueError(f"surface_diameters length ({len(surface_diameters)}) must match #surfaces ({n}).")
+
+    def _get_radius(i: int) -> Optional[float]:
+        return getattr(surfaces_obj[i].geometry, "radius", None)
+
+    def _get_conic(i: int) -> float:
+        k = getattr(surfaces_obj[i].geometry, "k", 0.0)
+        return 0.0 if k is None else float(k)
+
+    def _get_coeffs(i: int) -> List[float]:
+        coeffs = getattr(surfaces_obj[i].geometry, "coefficients", None)
+        if coeffs is None:
+            return []
+        return [float(c) for c in coeffs]
+
+    def _get_thickness(i: int) -> float:
+        t = sg.get_thickness(i)
+        return 0.0 if t is None else float(t)
+
+    def _medium_is_glass_after(i: int) -> bool:
+        """
+        Best-effort detection of "glass after surface i".
+        We try a few common Optiland-ish attribute patterns.
+        If nothing is discoverable, we default to False (no index key).
+        """
+        s = surfaces_obj[i]
+
+        # Common-ish possibilities:
+        for attr in ("medium_after", "medium_next", "material_after", "material_next", "medium"):
+            m = getattr(s, attr, None)
+            if m is None:
+                continue
+
+            # If there is a 'name' and it looks like air, treat as not glass.
+            name = getattr(m, "name", None)
+            if isinstance(name, str) and name.strip().lower() in ("air", "vacuum"):
+                return False
+
+            # If refractive index exists and is clearly > 1, treat as glass.
+            for n_attr in ("n", "index", "refractive_index"):
+                nv = getattr(m, n_attr, None)
+                if nv is None:
+                    continue
+                try:
+                    nv_f = float(nv)
+                    if nv_f > 1.0005:
+                        return True
+                except Exception:
+                    pass
+
+            # If we have *some* medium object and it isn't clearly air, assume glass.
+            return True
+
+        return False
+
+    out: List[Dict[str, Any]] = []
+    for i in range(n):
+        s_dict: Dict[str, Any] = {
+            "radius":       _get_radius(i),
+            "thickness":    _get_thickness(i),
+            "diameter":     None if surface_diameters[i] is None else float(surface_diameters[i]),
+            "conic":        _get_conic(i),
+            "coefficients": _get_coeffs(i),
+        }
+
+        # Only presence matters for your code
+        if _medium_is_glass_after(i):
+            s_dict["index"] = 1.0  # dummy value; not used by geometry_summary_from_request
+
+        out.append(s_dict)
+
+    return out
+
+def geometry_summary_from_request(surfaces, n_pts: int = 600) -> Dict[str, List[float]]:
     """
     Minimal output:
       {"Lense edge": [edge_t_lens0, edge_t_lens1, ...],
@@ -45,7 +133,7 @@ def geometry_summary_from_request(payload: Dict[str, Any], n_pts: int = 600) -> 
       x(r) = vertex_x + z(r)
     """
 
-    surfaces = payload["surfaces"]
+    
 
     # Normalize radii (None -> inf)
     for s in surfaces:
@@ -305,7 +393,7 @@ def modify_thickness(lens,found):
             return modify_thickness(lens,True)
     if not(Found):
         return lens,found
-def optimize_opt(lens, config):
+def optimize_opt(request):
     """
     Optimize a lens system using a JSON-structured configuration.
 
@@ -373,20 +461,22 @@ def optimize_opt(lens, config):
     }
     optimized_lens = optimize_opt(lens, config)
     """
-
+    payload = request.get_json(force=True)
+    use_optimization,lens,surface_diameters=creat_lens(request)
+    optim_config = payload["optim_config"]
     # Extract configuration
-    Check_thickness=True
-    while Check_thickness:
-        operands = config.get('operands', [])
-        variables = config.get('variables', [])
-        optimizer_settings = config.get('optimizer_settings', {})
 
-        # Get optimizer settings with defaults
-        method = optimizer_settings.get('method', 'L-BFGS-B')
-        max_iterations = optimizer_settings.get('max_iterations', 1000)
-        tolerance = optimizer_settings.get('tolerance', 0.00001)
-        display = optimizer_settings.get('display', True)
-        Modify_thickness=optimizer_settings.get('modify_thickness', True)
+    operands = optim_config.get('operands', [])
+    variables = optim_config.get('variables', [])
+    optimizer_settings = optim_config.get('optimizer_settings', {})
+
+    # Get optimizer settings with defaults
+    method = optimizer_settings.get('method', 'L-BFGS-B')
+    max_iterations = optimizer_settings.get('max_iterations', 1000)
+    tolerance = optimizer_settings.get('tolerance', 0.00001)
+    display = optimizer_settings.get('display', True)
+    Modify_thickness=optimizer_settings.get('modify_thickness', True)
+    while Modify_thickness:
         # Create optimization problem
         problem = optimization.OptimizationProblem()
 
@@ -615,9 +705,8 @@ def optimize_opt(lens, config):
         #problem.info()
         if Modify_thickness:
             lens,Check_thickness=modify_thickness(lens,False)
-        else:
-            Check_thickness=False
-    return lens
+            #geometry_report=geometry_summary_from_request(surfaces, 800)
+    return lens,surface_diameters
 def sanitize_for_json(obj):
     """
     Recursively replace NaN and Inf values with None for valid JSON serialization.
@@ -1176,17 +1265,9 @@ def creat_lens(request):
 # -----------------------------------------
 @app.route("/optimize", methods=["POST"])
 def optimize():
-    use_optimization,lens,surface_diameters=creat_lens(request)
-    try:
-        lens_json = save_lens_to_json(lens)
 
-    except Exception as e:
-        print(f"⚠️ Failed to save lens JSON927: {e}", flush=True)
-    payload = request.get_json(force=True)
     print('Optimization has been called----------------', flush=True)
-    optim_config = payload["optim_config"]
-    print('-------------optim is called')
-    lens=optimize_opt(lens, optim_config)
+    lens,surface_diameters=optimize_opt(request)
     normalize_asphere_coefficients(lens)
 
     data = extract_optical_data(lens, surface_diameters)
@@ -1213,8 +1294,8 @@ def analyze_geometry():
     for s in payload["surfaces"]:
         if s.get("radius") is None:
             s["radius"] = float("inf")
-
-    out = geometry_summary_from_request(payload, n_pts=800)
+    surfaces = payload["surfaces"]
+    out = geometry_summary_from_request(surfaces, n_pts=800)
     print('----------------manufacturability is done------',flush=True)
 
     return jsonify(out)
@@ -1237,6 +1318,11 @@ def simulate():
     try:
         print('----------------simulate is running------',flush=True)
         use_optimization,lens,surface_diameters=creat_lens(request)
+        test=build_surfaces_for_geometry_summary(lens, surface_diameters)
+        payload = request.get_json(force=True)
+        surfaces = payload["surfaces"]
+        print(test,flush=True)
+        print(surfaces,flush=True)
         lens.info()
         # === Apply optimization and stop surface finding (if needed) ===
         if use_optimization:
