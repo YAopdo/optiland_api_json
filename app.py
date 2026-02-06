@@ -488,19 +488,29 @@ def optimize_opt(request):
     """
     payload = request.get_json(force=True)
     use_optimization,lens,surface_diameters=creat_lens(request)
+    print('-----lens created for optimization----',flush=True)
+    lens.info()
     optim_config = payload["optim_config"]
     # Extract configuration
 
     operands = optim_config.get('operands', [])
     variables = optim_config.get('variables', [])
     optimizer_settings = optim_config.get('optimizer_settings', {})
-
+    print('operands:',flush=True)
+    print(operands,flush=True)
+    print('variables:',flush=True)
+    print(variables,flush=True)
+    print('optimizer_settings:',flush=True)
+    print(optimizer_settings,flush=True)
+    
     # Get optimizer settings with defaults
     method = optimizer_settings.get('method', 'L-BFGS-B')
     max_iterations = optimizer_settings.get('max_iterations', 1000)
     tolerance = optimizer_settings.get('tolerance', 0.00001)
     display = optimizer_settings.get('display', True)
     Modify_thickness=optimizer_settings.get('modify_thickness', True)
+    print('Modify_thickness',flush=True)
+    print(Modify_thickness,flush=True)
     while Modify_thickness:
         # Create optimization problem
         problem = optimization.OptimizationProblem()
