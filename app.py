@@ -36,7 +36,7 @@ def build_surfaces_for_geometry_summary(lens, surface_diameters: Sequence[Option
     """
     # 1) number of surfaces
     sg = lens.surface_group
-    surfaces_obj = sg.surfaces
+    surfaces_obj = sg.surfaces[1:-1]
     n = len(surfaces_obj)
 
     if len(surface_diameters) != n:
@@ -1318,6 +1318,7 @@ def simulate():
     try:
         print('----------------simulate is running------',flush=True)
         use_optimization,lens,surface_diameters=creat_lens(request)
+        print('-------lens created-------',flush=True)
         test=build_surfaces_for_geometry_summary(lens, surface_diameters)
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
