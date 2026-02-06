@@ -729,7 +729,7 @@ def optimize_opt(request):
         print("\n=== Optimization Problem Setup ===")
         #problem.info()
 
-        print(f"\n=== Running Optimization (method={method}) ===")
+        print(f"\n=== Running Optimization (method={method}) ===",flush=True)
         res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
         try:
             lens_json = save_lens_to_json(lens)
@@ -738,6 +738,7 @@ def optimize_opt(request):
             print(f"⚠️ Failed to save lens JSON345: {e}", flush=True)
         print("\n=== Optimization Results ===")
         #problem.info()
+        Modify_thickness=False
         if Modify_thickness:
             surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
             lens,Modify_thickness=fix_lens_geometry_from_summary(lens,surfaces,.1)
