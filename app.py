@@ -5,26 +5,20 @@ from flask_cors import CORS
 import numpy as np
 import traceback, os
 import json
-import matplotlib
 from optiland.materials import AbbeMaterial
 import optiland.backend as be
 
-
+import math
 from optiland import optic, analysis, optimization
 from optiland.fileio import load_zemax_file, save_optiland_file
 
 app = Flask(__name__)
 CORS(app)
 
-import numpy as np
-import math
-import numpy as np
+
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-import math
-import numpy as np
-from typing import Any, Dict, List, Optional, Sequence
-from typing import Any, Dict, List, Sequence, Optional
+
 
 def fix_lens_geometry_from_summary(
     lens,
@@ -313,28 +307,7 @@ def normalize_asphere_coefficients(optic):
         arr = np.asarray(coeffs).reshape(-1)
         geom.coefficients = [] if arr.size == 0 else [float(x) for x in arr]
 
-def modify_thickness(lens,found):
-    Found=False
-    for f_no, (Hx, Hy) in enumerate(lens.fields.get_field_coords()):
-        lens.trace(
-            Hx=Hx, Hy=Hy,
-            wavelength=lens.primary_wavelength,
-            num_rays=10,
-            distribution="line_y"
-        )
-        rays = np.array(lens.surface_group.z)
-        Mat=np.diff(rays,axis=0)
-        Neg=np.argwhere(Mat < 0)
-        if len(Neg)!=0:
-            print('thickness modified',flush=True)
-            Found=True
-            thickness=lens.surface_group.get_thickness(int(Neg[0][0]))
-            new_thickness=float(thickness[0]+.1)
-            lens.set_thickness(new_thickness,int(Neg[0][0]))
 
-            return modify_thickness(lens,True)
-    if not(Found):
-        return lens,found
 def optimize_opt(request):
     """
     Optimize a lens system using a JSON-structured configuration.
@@ -786,7 +759,6 @@ def parse_zmx_and_create_optic(zmx_path: str):
 # -----------------------------------------
 
 def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
-    need_aparture_fix=True
 
     lens = optic.Optic()
     
@@ -864,8 +836,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
     draw_called_list = [False]  # Track if draw() has been called
 
     diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
-    print('............final diameter at build_lens:',flush=True)
-    print(diameters,flush=True)
+
     return lens
 
 def build_lens_from_zmx(zmx_path):
@@ -1253,18 +1224,7 @@ def analyze_geometry():
 
     return jsonify(out)
 
-@app.route("/check_manufacturability", methods=["POST"])
-def check_manufacturability():
-    try:
-        _,lens,_=creat_lens(request)
-        _,thickness_report=check_thickness_json(lens)
-        thickness_report = sanitize_for_json(thickness_report)
-        return jsonify(thickness_report)
-    except Exception as e:
-        traceback.print_exc()
-        print('error:....')
-        print(str(e))
-        return jsonify({"error": str(e)}), 500
+
 @app.route("/simulate", methods=["POST"])
 
 def simulate():
