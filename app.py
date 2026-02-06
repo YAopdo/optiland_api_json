@@ -587,11 +587,7 @@ def optimize_opt(request):
                 surface_number = lens_number * 2
             else:
                 raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
-            try:
-                lens_json = save_lens_to_json(lens)
 
-            except Exception as e:
-                print(f"⚠️ Failed to save lens JSON308: {e}", flush=True)
             if var_type == 'asphere_coeff':
                 # Add all 3 aspheric coefficients
                 for coeff_num in range(3):
@@ -1201,7 +1197,7 @@ def optimize():
         # Frontend will save this string directly as a file
         data["lens_file"] = json.dumps(lens_json, indent=2, allow_nan=True)
     except Exception as e:
-        print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
+        print(f"⚠️ Failed to save lens JSON_optimize: {e}", flush=True)
         data["lens_file"] = None
 
     # Sanitize NaN and Inf values before returning JSON (lens_file is already a string, so it won't be affected)
@@ -1251,7 +1247,7 @@ def simulate():
             # Frontend will save this string directly as a file
             data["lens_file"] = json.dumps(lens_json, indent=2, allow_nan=True)
         except Exception as e:
-            print(f"⚠️ Failed to save lens JSON: {e}", flush=True)
+            print(f"⚠️ Failed to save lens JSON_simulate: {e}", flush=True)
             data["lens_file"] = None
 
         # Sanitize NaN and Inf values before returning JSON (lens_file is already a string, so it won't be affected)
