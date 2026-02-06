@@ -283,89 +283,6 @@ def geometry_summary_from_request(surfaces, n_pts: int = 600) -> Dict[str, List[
 
     return {"Lense edge": lens_edges, "gaps": gaps, "lens_passed": lens_passed}
 
-
-def check_thickness_json(
-    lens,
-    step=0.2,
-    max_iter=20000,
-    n_air_thresh=1.05,
-    num_rays=15,
-    distribution="line_y",
-    verbose=False
-):
-    sg = lens.surface_group
-    n_surfaces = len(sg.surfaces)
-
-    # ---- snapshot initial thicknesses
-    initial_thickness = []
-    for i in range(n_surfaces - 1):
-        t = sg.get_thickness(i)
-        initial_thickness.append(
-            float(t[0] if hasattr(t, "__len__") else t)
-        )
-
-    def find_negative_jumps():
-        bad = set()
-        for Hx, Hy in lens.fields.get_field_coords():
-            lens.trace(
-                Hx=Hx, Hy=Hy,
-                wavelength=lens.primary_wavelength,
-                num_rays=num_rays,
-                distribution=distribution
-            )
-            z = np.array(sg.z)
-            dz = np.diff(z, axis=0)
-            neg = np.argwhere(dz < 0)
-            if len(neg) > 0:
-                bad |= set(neg[:, 0])
-        return sorted(bad)
-
-    def is_air_gap(i):
-        return float(sg.surfaces[i].material_post.n(1)) <= n_air_thresh
-
-    # ---- main fix loop
-    for it in range(max_iter):
-        bad = find_negative_jumps()
-
-        if not bad:
-            if verbose:
-                print(f"[OK] No intersections after {it} iterations.", flush=True)
-            break
-
-        air_gap = [i for i in bad if is_air_gap(i)]
-        in_glass = [i for i in bad if i not in air_gap]
-
-        i_fix = air_gap[0] if air_gap else in_glass[0]
-        fix_type = "air_gap" if i_fix in air_gap else "in_glass"
-
-        t0 = sg.get_thickness(i_fix)
-        t0 = float(t0[0] if hasattr(t0, "__len__") else t0)
-        t1 = t0 + step
-
-        lens.set_thickness(t1, i_fix)
-
-        if verbose:
-            print(
-                f"[{it+1}] surface {i_fix}: {t0:.4f} → {t1:.4f} ({fix_type})",
-                flush=True
-            )
-
-    # ---- JSON report (exact requested schema)
-    thickness_report = []
-    for i in range(n_surfaces - 1):
-        t_final = sg.get_thickness(i)
-        t_final = float(t_final[0] if hasattr(t_final, "__len__") else t_final)
-
-        delta = t_final - initial_thickness[i]
-
-        thickness_report.append({
-            "surface_index": i,
-            "Status": "notok" if abs(delta) > 1e-12 else "ok",
-            "delta": delta,
-            "type": "air_gap" if is_air_gap(i) else "in_glass"
-        })
-
-    return lens, thickness_report
 def normalize_asphere_coefficients(optic):
     for surf in optic.surface_group.surfaces:
         geom = getattr(surf, "geometry", None)
@@ -509,6 +426,7 @@ def optimize_opt(request):
     tolerance = optimizer_settings.get('tolerance', 0.00001)
     display = optimizer_settings.get('display', True)
     Modify_thickness=optimizer_settings.get('modify_thickness', True)
+    Modify_thickness=False
     print('Modify_thickness',flush=True)
     print(Modify_thickness,flush=True)
     counter=0
@@ -721,11 +639,7 @@ def optimize_opt(request):
                 if max_value is not None:
                     kwargs['max_val'] = max_value
                 problem.add_variable(lens, var_type, **kwargs)
-        try:
-            lens_json = save_lens_to_json(lens)
-
-        except Exception as e:
-            print(f"⚠️ Failed to save lens JSON333: {e}", flush=True)
+ 
         # Run optimization
         optimizer = optimization.OptimizerGeneric(problem)
         print("\n=== Optimization Problem Setup ===")
@@ -733,11 +647,7 @@ def optimize_opt(request):
 
         print(f"\n=== Running Optimization (method={method}) ===",flush=True)
         res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
-        try:
-            lens_json = save_lens_to_json(lens)
 
-        except Exception as e:
-            print(f"⚠️ Failed to save lens JSON345: {e}", flush=True)
         print("\n=== Optimization Results ===")
         #problem.info()
         if Modify_thickness:
