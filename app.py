@@ -1215,9 +1215,10 @@ def analyze_geometry():
         if s.get("radius") is None:
             s["radius"] = float("inf")
     surfaces = payload["surfaces"]
+    print(surfaces,flush=True)
     out = geometry_summary_from_request(surfaces, n_pts=800)
     print('----------------manufacturability is done------',flush=True)
-
+    print(out,flush=True)
     return jsonify(out)
 
 
