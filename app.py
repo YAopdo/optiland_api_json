@@ -627,7 +627,11 @@ def optimize_opt(request):
         else:
             print(counter,flush=True)
             print('not_modified',flush=True)
+            for i in range(len(lens.surface_group.surfaces)-2):
+                print(lens.surface_group.surfaces[i+1].geometry.coefficients,flush=True)
             return lens,surface_diameters
+    for i in range(len(lens.surface_group.surfaces)-2):
+        print(lens.surface_group.surfaces[i+1].geometry.coefficients,flush=True)
     return lens,surface_diameters
 def sanitize_for_json(obj):
     """
