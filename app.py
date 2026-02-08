@@ -772,6 +772,8 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
         lens.add_surface(index=0, thickness=np.inf)
     for i, s in enumerate(surfaces_json, start=1):
         # Construct material using refractive index, fallback to air
+        print('surface .... '+str(i)+'  :  ',flush=True)
+        print(s,flush=True)
         if "index" in s:
             material = AbbeMaterial(n=s["index"], abbe=60)
         else:
