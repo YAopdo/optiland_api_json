@@ -1028,7 +1028,12 @@ def extract_optical_data(lens, surface_diameters=None):
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
             "thickness": float(s.thickness) if np.isfinite(s.thickness) else 1e6,
             "diameter": get_diameter(s, lens, draw_called_list),
-            "Is_Lens": float(type(s.material_post.n(lens.primary_wavelength))==np.ndarray)
+            "Is_Lens": float(type(s.material_post.n(lens.primary_wavelength))==np.ndarray),
+            "coef": (
+                list(s.geometry.coefficients)
+                if hasattr(s.geometry, "coefficients") and s.geometry.coefficients is not None
+                else []
+            ),
         }
         for s in lens.surface_group.surfaces
     ]
