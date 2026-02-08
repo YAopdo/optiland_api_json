@@ -612,13 +612,15 @@ def optimize_opt(request):
         # Run optimization
         optimizer = optimization.OptimizerGeneric(problem)
         print("\n=== Optimization Problem Setup ===")
-        #problem.info()
+        if display:
+            problem.info()
 
         print(f"\n=== Running Optimization (method={method}) ===",flush=True)
         res = optimizer.optimize(method=method, maxiter=max_iterations, disp=display, tol=tolerance)
 
         print("\n=== Optimization Results ===")
-        #problem.info()
+        if display:
+            problem.info()
         if Modify_thickness:
             surfaces=build_surfaces_for_geometry_summary(lens, surface_diameters)
             lens,Modify_thickness=fix_lens_geometry_from_summary(lens,surfaces,.1)
