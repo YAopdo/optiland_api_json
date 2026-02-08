@@ -1021,7 +1021,6 @@ def extract_optical_data(lens, surface_diameters=None):
     # Use the module-level get_diameter function
     draw_called_list = [False]  # Track if draw() has been called
     diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
-    diameters[0]=surface_diameters[0]
     surfaces = [
         {
             "radius": float(s.geometry.radius) if np.isfinite(s.geometry.radius) else 1e6,
