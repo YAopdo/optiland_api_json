@@ -467,7 +467,7 @@ def optimize_opt(request):
                     "Hx": 0,
                     "Hy": 0,
                     "Px": 0,
-                    "Py": 1,
+                    "Py": 0,
                     "wavelength": Wave[0],
                 }
                 problem.add_operand(
@@ -502,7 +502,7 @@ def optimize_opt(request):
                     "Hx": 0,
                     "Hy": 0,
                     "Px": 0,
-                    "Py": 1,
+                    "Py": 0,
                     "wavelength": Wave[0],
                 }
                 problem.add_operand(
