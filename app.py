@@ -11,6 +11,10 @@ import optiland.backend as be
 import math
 from optiland import optic, analysis, optimization
 from optiland.fileio import load_zemax_file, save_optiland_file
+from optiland.tolerancing.perturbation import DistributionSampler
+
+from optiland.tolerancing import RangeSampler, SensitivityAnalysis, Tolerancing
+from optiland.tolerancing.monte_carlo import MonteCarlo
 
 app = Flask(__name__)
 CORS(app)
@@ -19,6 +23,24 @@ CORS(app)
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
+def df_to_columnar_payload(df, max_rows=None):
+    if max_rows is not None:
+        df = df.head(max_rows)
+
+    clean = df.replace([np.inf, -np.inf], np.nan)
+
+    # Convert to python-native scalars + JSON-friendly None for NaN
+    data = {}
+    for c in clean.columns:
+        col = clean[c].astype(object).where(~clean[c].isna(), None).tolist()
+        data[str(c)] = col
+
+    schema = {
+        "columns": [{"name": str(c), "dtype": str(df[c].dtype)} for c in df.columns],
+        "n_rows": int(len(df)),
+    }
+
+    return {"schema": schema, "data": data}
 
 def fix_lens_geometry_from_summary(
     lens,
@@ -307,6 +329,207 @@ def normalize_asphere_coefficients(optic):
         arr = np.asarray(coeffs).reshape(-1)
         geom.coefficients = [] if arr.size == 0 else [float(x) for x in arr]
 
+def tolerancing(request):
+    payload = request.get_json(force=True)
+    use_optimization,lens,surface_diameters=creat_lens(request)
+    print('-----lens created for optimization----',flush=True)
+    lens.info()
+    optim_config = payload["Tolerancing_config"]
+    # Extract configuration
+
+    operands = optim_config.get('operands', [])
+    variables = optim_config.get('variables', [])
+    optimizer_settings = optim_config.get('optimizer_settings', {})
+    print('operands:',flush=True)
+    print(operands,flush=True)
+    print('variables:',flush=True)
+    print(variables,flush=True)
+    print('optimizer_settings:',flush=True)
+    print(optimizer_settings,flush=True)
+    tolerancing = Tolerancing(lens)
+    # Add variables
+    for variable in variables:
+        var_type = variable['type']
+        loc = variable.get('loc')
+        scale = variable.get('scale')
+
+        # Convert lens_number + side to surface_number
+        # Surface mapping: Lens N front = 2*N-1, Lens N back = 2*N
+        # (Surface 0 is light source, last surface is image plane)
+        lens_number = variable['lens_number']
+        side = variable['side']
+
+        if side == 'front':
+            surface_number = lens_number * 2 - 1
+        elif side == 'back':
+            surface_number = lens_number * 2
+        else:
+            raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
+
+        sampler = DistributionSampler("normal", loc=loc, scale=scale)
+        tolerancing.add_perturbation("radius", sampler, surface_number=surface_number)
+    for operand in operands:
+        operand_type = operand['type']
+        target = operand.get('target',0)
+        weight = operand.get('weight',1)
+        if operand_type == 'OPD_difference':
+            # Apply to all wavelengths and field coordinates
+            for wave in lens.wavelengths.get_wavelengths():
+                for Hx, Hy in lens.fields.get_field_coords():
+                    input_data = {
+                        "optic": lens,
+                        "Hx": Hx,
+                        "Hy": Hy,
+                        "num_rays": 5,
+                        "wavelength": wave,
+                        "distribution": "gaussian_quad",
+                    }
+                    tolerancing.add_operand(
+                        operand_type=operand_type,
+                        target=target,
+                        weight=weight,
+                        input_data=input_data,
+                    )
+
+        elif operand_type in ['f1', 'f2']:
+            # Focal length operands
+            tolerancing.add_operand(
+                operand_type=operand_type,
+                target=target,
+                weight=weight,
+                input_data={"optic": lens},
+            )
+
+        elif operand_type == 'real_y_intercept':
+            # Ray y-intercept at specific surface
+            # Support both lens_number+side format and direct surface_number
+            if 'surface_number' in operand:
+                surface_number = operand['surface_number']
+            else:
+                lens_num = operand['lens_number']
+                side = operand['side']
+                if side == 'image_plane':
+                    # Image plane is after all lenses: 2*lens_num + 1
+                    surface_number = lens_num * 2 + 1
+                elif side == 'front':
+                    surface_number = lens_num * 2 - 1
+                elif side == 'back':
+                    surface_number = lens_num * 2
+                else:
+                    raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
+
+            Wave = lens.wavelengths.get_wavelengths()
+            input_data = {
+                "optic": lens,
+                "surface_number": surface_number,
+                "Hx": 0,
+                "Hy": 0,
+                "Px": 0,
+                "Py": 0,
+                "wavelength": Wave[0],
+            }
+            tolerancing.add_operand(
+                operand_type="real_y_intercept",
+                target=target,
+                weight=weight,
+                input_data=input_data,
+            )
+
+        elif operand_type == 'real_z_intercept':
+            # Ray z-intercept at specific surface
+            # Support both lens_number+side format and direct surface_number
+            if 'surface_number' in operand:
+                surface_number = operand['surface_number']
+            else:
+                lens_num = operand['lens_number']
+                side = operand['side']
+                if side == 'image_plane':
+                    # Image plane is after all lenses: 2*lens_num + 1
+                    surface_number = lens_num * 2 + 1
+                elif side == 'front':
+                    surface_number = lens_num * 2 - 1
+                elif side == 'back':
+                    surface_number = lens_num * 2
+                else:
+                    raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
+
+            Wave = lens.wavelengths.get_wavelengths()
+            input_data = {
+                "optic": lens,
+                "surface_number": surface_number,
+                "Hx": 0,
+                "Hy": 0,
+                "Px": 0,
+                "Py": 0,
+                "wavelength": Wave[0],
+            }
+            tolerancing.add_operand(
+                operand_type="real_z_intercept",
+                target=target,
+                weight=weight,
+                input_data=input_data,
+            )
+
+        elif operand_type == 'rms_spot_size':
+                        # Apply to all wavelengths and field coordinates
+            for wave in lens.wavelengths.get_wavelengths():
+                for Hx, Hy in lens.fields.get_field_coords():
+            # RMS spot size at image plane
+            #Wave = lens.wavelengths.get_wavelengths()
+                    num_rays = operand.get('num_rays', 5)
+                    distribution = operand.get('distribution', 'hexapolar')
+                    input_data = {
+                        "optic": lens,
+                        "surface_number": -1,
+                        "Hx": Hx,
+                        "Hy": Hy,
+                        "num_rays": num_rays,
+                        "wavelength": wave,
+                        "distribution": distribution,
+                    }
+                    tolerancing.add_operand(
+                        operand_type="rms_spot_size",
+                        target=target,
+                        weight=weight,
+                        input_data=input_data,
+                    )
+        elif operand_type == 'AOI':
+            if 'surface_number' in operand:
+                surface_number = operand['surface_number']
+            else:
+                lens_num = operand['lens_number']
+                side = operand['side']
+                if side == 'image_plane':
+                    # Image plane is after all lenses: 2*lens_num + 1
+                    surface_number = lens_num * 2 + 1
+                elif side == 'front':
+                    surface_number = lens_num * 2 - 1
+                elif side == 'back':
+                    surface_number = lens_num * 2
+                else:
+                    raise ValueError(f"Invalid side '{side}' for operand. Must be 'front', 'back', or 'image_plane'")
+            Wave = lens.wavelengths.get_wavelengths()
+            num_rays = operand.get('num_rays', 5)
+            distribution = operand.get('distribution', 'hexapolar')
+            input_data = {
+                "optic": lens,
+                "surface_number": surface_number,
+                "Hx": 0,
+                "Hy": 0,
+                "Px": 0,
+                "Py": 1,
+                "wavelength": Wave[0],
+            }
+            tolerancing.add_operand(
+                operand_type="AOI",
+                target=target,
+                weight=weight,
+                input_data=input_data,
+            )
+    monte_carlo = MonteCarlo(tolerancing)
+    monte_carlo.run(num_iterations=1000)
+    res=monte_carlo.get_results()
+    return res
 
 def optimize_opt(request):
     """
@@ -1195,6 +1418,11 @@ def creat_lens(request):
 # -----------------------------------------
 # API Route
 # -----------------------------------------
+@app.route("/tolerance", methods=["POST"])
+def tolerance():
+    result=tolerancing(request)
+    res = df_to_columnar_payload(result, max_rows=1000)
+    return jsonify(res)
 @app.route("/optimize", methods=["POST"])
 def optimize():
 
