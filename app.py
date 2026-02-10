@@ -340,7 +340,8 @@ def tolerancing(request):
 
     operands = optim_config.get('operands', [])
     variables = optim_config.get('variables', [])
-    optimizer_settings = optim_config.get('optimizer_settings', {})
+    optimizer_settings = optim_config.get('Tolerancing_settings', {})
+    iteration = optimizer_settings.get('num_iterations',100)
     print('operands for tolerancing:',flush=True)
     print(operands,flush=True)
     print('variables for tolerancing:',flush=True)
@@ -537,7 +538,7 @@ def tolerancing(request):
         print('operand',flush=True)
     print('monte_carlo is called',flush=True)
     monte_carlo = MonteCarlo(tolerancing)
-    monte_carlo.run(num_iterations=1000)
+    monte_carlo.run(num_iterations=iteration)
     print('monte_carlo is done',flush=True)
     res=monte_carlo.get_results()
     return res
