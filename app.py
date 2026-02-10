@@ -350,8 +350,8 @@ def tolerancing(request):
     # Add variables
     for variable in variables:
         var_type = variable['type']
-        loc = variable.get('loc')
-        scale = variable.get('scale')
+        #loc = variable.get('loc')
+        
 
         # Convert lens_number + side to surface_number
         # Surface mapping: Lens N front = 2*N-1, Lens N back = 2*N
@@ -365,6 +365,13 @@ def tolerancing(request):
             surface_number = lens_number * 2
         else:
             raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
+        if var_type=='radius':
+            loc = lens.surface_group.radii[surface_number]
+        elif var_type=='thickness':
+            loc=lens.surface_group.get_thickness(surface_number)
+        elif (var_type=='tilt') | (var_type=='decenter'):
+            loc=0
+        scale = variable.get('scale',loc/10)
         print('var added:...',flush=True)
         print('loc,scale,var_type,surface_number: ',loc,scale,scale,var_type,surface_number,flush=True)
         sampler = DistributionSampler("normal", loc=loc, scale=scale)
