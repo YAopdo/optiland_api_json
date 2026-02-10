@@ -330,9 +330,10 @@ def normalize_asphere_coefficients(optic):
         geom.coefficients = [] if arr.size == 0 else [float(x) for x in arr]
 
 def tolerancing(request):
+    print('------------tolerancing is running----------',flush=True)
     payload = request.get_json(force=True)
     use_optimization,lens,surface_diameters=creat_lens(request)
-    print('-----lens created for optimization----',flush=True)
+    print('-----lens created for tolerancing----',flush=True)
     lens.info()
     optim_config = payload["Tolerancing_config"]
     # Extract configuration
@@ -340,12 +341,11 @@ def tolerancing(request):
     operands = optim_config.get('operands', [])
     variables = optim_config.get('variables', [])
     optimizer_settings = optim_config.get('optimizer_settings', {})
-    print('operands:',flush=True)
+    print('operands for tolerancing:',flush=True)
     print(operands,flush=True)
-    print('variables:',flush=True)
+    print('variables for tolerancing:',flush=True)
     print(variables,flush=True)
-    print('optimizer_settings:',flush=True)
-    print(optimizer_settings,flush=True)
+
     tolerancing = Tolerancing(lens)
     # Add variables
     for variable in variables:
@@ -365,9 +365,10 @@ def tolerancing(request):
             surface_number = lens_number * 2
         else:
             raise ValueError(f"Invalid side '{side}'. Must be 'front' or 'back'")
-
+        print('var added:...',flush=True)
+        print('loc,scale,var_type,surface_number: ',loc,scale,scale,var_type,surface_number,flush=True)
         sampler = DistributionSampler("normal", loc=loc, scale=scale)
-        tolerancing.add_perturbation("radius", sampler, surface_number=surface_number)
+        tolerancing.add_perturbation(var_type, sampler, surface_number=surface_number)
     for operand in operands:
         operand_type = operand['type']
         target = operand.get('target',0)
@@ -526,8 +527,11 @@ def tolerancing(request):
                 weight=weight,
                 input_data=input_data,
             )
+        print('operand',flush=True)
+    print('monte_carlo is called',flush=True)
     monte_carlo = MonteCarlo(tolerancing)
     monte_carlo.run(num_iterations=1000)
+    print('monte_carlo is done',flush=True)
     res=monte_carlo.get_results()
     return res
 
