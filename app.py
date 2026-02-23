@@ -503,6 +503,7 @@ def tolerancing(request):
                         input_data=input_data,
                     )
                     break
+                
         elif operand_type == 'AOI':
             if 'surface_number' in operand:
                 surface_number = operand['surface_number']
