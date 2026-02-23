@@ -346,6 +346,8 @@ def tolerancing(request):
     print(operands,flush=True)
     print('variables for tolerancing:',flush=True)
     print(variables,flush=True)
+    print('optimizer_settings for tolerancing:',flush=True)
+    print(optimizer_settings,flush=True)
 
     tolerancing = Tolerancing(lens)
     # Add variables
@@ -503,7 +505,7 @@ def tolerancing(request):
                         input_data=input_data,
                     )
                     break
-                
+
         elif operand_type == 'AOI':
             if 'surface_number' in operand:
                 surface_number = operand['surface_number']
