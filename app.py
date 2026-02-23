@@ -374,7 +374,7 @@ def tolerancing(request):
             loc=lens.surface_group.get_thickness(surface_number)
         elif (var_type=='tilt') | (var_type=='decenter'):
             loc=0
-        scale = variable.get('scale',loc/10)
+        scale = variable.get('scale',np.abs(loc/10))
         print('var added:...',flush=True)
         print('loc,scale,var_type,surface_number: ',loc,scale,scale,var_type,surface_number,flush=True)
         sampler = DistributionSampler("normal", loc=loc, scale=scale)
