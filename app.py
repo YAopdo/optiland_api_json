@@ -1435,7 +1435,34 @@ def creat_lens(request):
 @app.route("/tolerance", methods=["POST"])
 def tolerance():
     result=tolerancing(request)
+
+    # Calculate statistics for each column
+    stats = {
+        "mean": {},
+        "std": {}
+    }
+
+    for column in result.columns:
+        try:
+            # Calculate mean and std, handling NaN values
+            col_data = result[column].dropna()
+            if len(col_data) > 0:
+                stats["mean"][str(column)] = float(col_data.mean())
+                stats["std"][str(column)] = float(col_data.std())
+            else:
+                stats["mean"][str(column)] = None
+                stats["std"][str(column)] = None
+        except Exception as e:
+            print(f"⚠️ Failed to calculate stats for column {column}: {e}", flush=True)
+            stats["mean"][str(column)] = None
+            stats["std"][str(column)] = None
+
+    # Convert dataframe to columnar payload
     res = df_to_columnar_payload(result, max_rows=1000)
+
+    # Add statistics to response
+    res["statistics"] = stats
+
     return jsonify(res)
 @app.route("/optimize", methods=["POST"])
 def optimize():
