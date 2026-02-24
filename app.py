@@ -1005,7 +1005,6 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10,stop_s
         lens.add_wavelength(value=0.55,is_primary=True)
     draw_called_list = [False]  # Track if draw() has been called
 
-    diameters = [get_diameter(s, lens, draw_called_list) for s in lens.surface_group.surfaces]
 
     return lens
 
