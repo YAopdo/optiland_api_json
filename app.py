@@ -999,7 +999,7 @@ def parse_zmx_and_create_optic(zmx_path: str):
 # Lens Builder
 # -----------------------------------------
 
-def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
+def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10,stop_surface_number=1):
 
     lens = optic.Optic()
     
@@ -1027,7 +1027,7 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
                 "surface_type": s.get("surface_type", "even_asphere"),
                 "conic":        s.get("conic"),
                 "coefficients": s.get("coefficients"),
-                "is_stop": True,
+                
             }
         else:
             kwargs = {
@@ -1044,6 +1044,8 @@ def build_lens(surfaces_json, light_sources=None, wavelengths=None,Apr=10):
 
     lens.add_surface(index=len(surfaces_json) + 1)
     lens.set_aperture(aperture_type="EPD", value=Apr)
+    lens.surface_group.surfaces[stop_surface_number].is_stop = True
+
     # === Handle light sources ===
     if light_sources:
         first_type = light_sources[0].get("type")
@@ -1400,7 +1402,15 @@ def creat_lens(request):
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
         #Aperture = payload["aperture"]
-        
+        stop_surface = payload["stop_surface"]
+        # Extract configuration
+
+        stop_lens_number = stop_surface.get('lens_number', 1)  
+        stop_side = stop_surface.get('side', 'front')  
+        if stop_side == 'front':
+            stop_surface_number = stop_lens_number * 2 - 1
+        elif stop_side == 'back':
+            stop_surface_number = stop_lens_number * 2
         if "aperture" in payload:
             Aperture = payload["aperture"]
         else:
@@ -1419,14 +1429,14 @@ def creat_lens(request):
                 surface["radius"] = np.inf
         light_sources = payload.get("lightSources", [])
         wavelengths = payload.get("wavelengths", [])
-        lens = build_lens(surfaces, light_sources, wavelengths,Aperture)
+        lens = build_lens(surfaces, light_sources, wavelengths,Aperture,stop_surface_number)
         if lens.surface_group.surfaces[-2].thickness==0:
             use_optimization = True
         else:
-            for s in lens.surface_group.surfaces:
-                s.is_stop = False
-            # Set candidate
-            lens.surface_group.surfaces[1].is_stop = True
+            # for s in lens.surface_group.surfaces:
+            #     s.is_stop = False
+            # # Set candidate
+            # lens.surface_group.surfaces[1].is_stop = True
             use_optimization=False
 
     return use_optimization,lens,surface_diameters
