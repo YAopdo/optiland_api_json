@@ -6,21 +6,20 @@ import numpy as np
 import traceback, os
 import json
 from optiland.materials import AbbeMaterial
-import optiland.backend as be
 
 import math
 from optiland import optic, analysis, optimization
 from optiland.fileio import load_zemax_file, save_optiland_file
 from optiland.tolerancing.perturbation import DistributionSampler
 
-from optiland.tolerancing import RangeSampler, SensitivityAnalysis, Tolerancing
+from optiland.tolerancing import Tolerancing
 from optiland.tolerancing.monte_carlo import MonteCarlo
 
 app = Flask(__name__)
 CORS(app)
 
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence
 
 
 def df_to_columnar_payload(df, max_rows=None):
@@ -916,84 +915,10 @@ def find_image_plane(lens):
     problem.add_variable(lens, "thickness", surface_number=-2, min_val=5, max_val=100000)
     optimizer = optimization.OptimizerGeneric(problem)
     optimizer.optimize()
-    thicknesses = be.diff(
-    be.ravel(lens.surface_group.positions), append=be.array([be.nan])
-)
+
 
     return lens
 
-def parse_zmx_and_create_optic(zmx_path: str):
-    with open(zmx_path, "r") as f:
-        lines = f.readlines()
-
-    lens = optic.Optic()
-    aperture_value = 5.0
-    wavelengths = []
-    fields = []
-
-    index = None
-    radius = None
-    thickness = None
-    n = None
-    abbe = None
-    is_stop = False
-
-    def add_surface_if_ready():
-        nonlocal index, radius, thickness, n, abbe, is_stop
-        if index is not None and radius is not None and thickness is not None:
-            kwargs = {
-                "index": index,
-                "radius": radius,
-                "thickness": thickness,
-                "is_stop": is_stop
-            }
-            if n is not None and abbe is not None:
-                kwargs["material"] = AbbeMaterial(n=n, abbe=abbe)
-            lens.add_surface(**kwargs)
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("ENPD"):
-            aperture_value = float(line.split()[1])
-        elif line.startswith("WAVL"):
-            wavelengths = list(map(float, line.split()[1:]))
-        elif line.startswith("YFLN"):
-            fields = list(map(float, line.split()[1:]))
-        elif line.startswith("SURF"):
-            add_surface_if_ready()
-            index = int(line.split()[1])
-            radius = None
-            thickness = None
-            n = None
-            abbe = None
-            is_stop = False
-        elif "STOP" in line:
-            is_stop = True
-        elif line.startswith("CURV"):
-            curv = float(line.split()[1])
-            radius = np.inf if curv == 0 else 1.0 / curv
-        elif line.startswith("DISZ"):
-            val = line.split()[1]
-            thickness = np.inf if val == "INFINITY" else float(val)
-        elif line.startswith("GLAS"):
-            parts = line.split()
-            n = float(parts[4])
-            abbe = float(parts[5])
-
-    add_surface_if_ready()
-    lens.add_surface(index=index + 1)
-    lens.set_aperture(aperture_type="EPD", value=aperture_value)
-
-    lens.set_field_type("angle")
-    for y in fields:
-        lens.add_field(y=y)
-
-    for i, w in enumerate(wavelengths):
-        lens.add_wavelength(value=w, is_primary=(i == 1))
-
-    return lens
 
 # -----------------------------------------
 # Lens Builder
@@ -1096,28 +1021,7 @@ def build_lens_from_zmx(zmx_path):
 # -----------------------------------------
 # Optical Data Extractor
 # -----------------------------------------
-def best_intersection_point(x0, y0, x1, y1):
-    # Direction vectors of the lines
-    dx = x1 - x0
-    dy = y1 - y0
-    
-    # Normalize direction vectors
-    lengths = np.sqrt(dx**2 + dy**2)
-    dx /= lengths
-    dy /= lengths
 
-    # Normal vector to each line (perpendicular)
-    nx = -dy
-    ny = dx
-
-    # Each line satisfies: nx*(x - x0) + ny*(y - y0) = 0
-    # Expand to: nx*x + ny*y = nx*x0 + ny*y0
-    A = np.stack([nx, ny], axis=1)
-    b = nx * x0 + ny * y0
-
-    # Least squares solution to A @ [x, y] = b
-    best_point, *_ = np.linalg.lstsq(A, b, rcond=None)
-    return best_point  # [x, y]
 
 def get_diameter(surface, lens=None, draw_called_list=None):
     """
