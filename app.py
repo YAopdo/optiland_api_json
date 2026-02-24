@@ -1311,11 +1311,15 @@ def creat_lens(request):
 
             stop_lens_number = stop_surface.get('lens_number', 1)  
             stop_side = stop_surface.get('side', 'front')  
+            print('------------stop from app------',flush=True)
+            print(stop_lens_number,flush=True)
+            print(stop_side,flush=True)
             if stop_side == 'front':
                 stop_surface_number = stop_lens_number * 2 - 1
             elif stop_side == 'back':
                 stop_surface_number = stop_lens_number * 2
         else:
+            print('---------stop was not in payload------',flush=True)
             stop_surface_number=1
         if "aperture" in payload:
             Aperture = payload["aperture"]
