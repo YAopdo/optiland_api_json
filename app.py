@@ -1402,15 +1402,18 @@ def creat_lens(request):
         payload = request.get_json(force=True)
         surfaces = payload["surfaces"]
         #Aperture = payload["aperture"]
-        stop_surface = payload["stop_surface"]
-        # Extract configuration
+        if "stop_surface" in payload:
+            stop_surface = payload["stop_surface"]
+            # Extract configuration
 
-        stop_lens_number = stop_surface.get('lens_number', 1)  
-        stop_side = stop_surface.get('side', 'front')  
-        if stop_side == 'front':
-            stop_surface_number = stop_lens_number * 2 - 1
-        elif stop_side == 'back':
-            stop_surface_number = stop_lens_number * 2
+            stop_lens_number = stop_surface.get('lens_number', 1)  
+            stop_side = stop_surface.get('side', 'front')  
+            if stop_side == 'front':
+                stop_surface_number = stop_lens_number * 2 - 1
+            elif stop_side == 'back':
+                stop_surface_number = stop_lens_number * 2
+        else:
+            stop_surface_number=1
         if "aperture" in payload:
             Aperture = payload["aperture"]
         else:
