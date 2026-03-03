@@ -1185,6 +1185,7 @@ def extract_optical_data(lens, surface_diameters=None):
     output = {}
 
     # === Spot Diagram ===
+    output["aperture"]=lens.aperture.value
     spot_data = np.array(spot.data)
     output["spot"] = {}
     shape = spot_data.shape
