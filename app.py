@@ -1185,7 +1185,12 @@ def extract_optical_data(lens, surface_diameters=None):
     output = {}
 
     # === Spot Diagram ===
-    output["aperture"]=lens.aperture.value
+    if lens.aperture.ap_type=='imageFNO':
+        efl = lens.paraxial.f2()  # second focal length (EFL) in Optiland terminology
+
+        output["aperture"]=efl / lens.aperture.value
+    else:
+        output["aperture"]=lens.aperture.value
     spot_data = np.array(spot.data)
     output["spot"] = {}
     shape = spot_data.shape
